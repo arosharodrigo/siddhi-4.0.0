@@ -17,6 +17,8 @@
  */
 package org.wso2.siddhi.core.query.input;
 
+import org.apache.commons.math3.stat.descriptive.SynchronizedSummaryStatistics;
+import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.debugger.SiddhiDebugger;
 import org.wso2.siddhi.core.event.ComplexEvent;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
@@ -32,10 +34,14 @@ import org.wso2.siddhi.core.stream.StreamJunction;
 import org.wso2.siddhi.core.util.lock.LockWrapper;
 import org.wso2.siddhi.core.util.statistics.LatencyTracker;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ProcessStreamReceiver implements StreamJunction.Receiver {
+
+    private static final Logger log = Logger.getLogger(ProcessStreamReceiver.class);
 
     protected String streamId;
     protected Processor next;
@@ -51,10 +57,18 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
     private SiddhiDebugger siddhiDebugger;
     private String queryName;
 
+    private AtomicLong currentEventCount = new AtomicLong(0);
+    private AtomicLong totalDuration = new AtomicLong(0);
+    private final SynchronizedSummaryStatistics throughputStatistics = new SynchronizedSummaryStatistics();
+    protected int performanceCalculateBatchCount;
+
+    private final DecimalFormat decimalFormat = new DecimalFormat("###.##");
+
     public ProcessStreamReceiver(String streamId, LatencyTracker latencyTracker, String queryName) {
         this.streamId = streamId;
         this.latencyTracker = latencyTracker;
         this.queryName = queryName;
+        this.performanceCalculateBatchCount = 1000;
     }
 
     @Override
@@ -96,6 +110,7 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
 
     @Override
     public void receive(ComplexEvent complexEvents) {
+        long startTime = System.nanoTime();
         if (siddhiDebugger != null) {
             siddhiDebugger.checkBreakPoint(queryName, SiddhiDebugger.QueryTerminal.IN, complexEvents);
         }
@@ -111,17 +126,22 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
             complexEvents = complexEvents.getNext();
         }
         process(new ComplexEventChunk<StreamEvent>(firstEvent, currentEvent, this.batchProcessingAllowed));
+        long endTime = System.nanoTime();
+        markStat(startTime, endTime, 1);
     }
 
     @Override
     public void receive(Event event) {
         if (event != null) {
+            long startTime = System.nanoTime();
             StreamEvent borrowedEvent = streamEventPool.borrowEvent();
             streamEventConverter.convertEvent(event, borrowedEvent);
             if (siddhiDebugger != null) {
                 siddhiDebugger.checkBreakPoint(queryName, SiddhiDebugger.QueryTerminal.IN, borrowedEvent);
             }
             process(new ComplexEventChunk<StreamEvent>(borrowedEvent, borrowedEvent, this.batchProcessingAllowed));
+            long endTime = System.nanoTime();
+            markStat(startTime, endTime, 1);
         }
     }
 
@@ -139,7 +159,10 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
         if (siddhiDebugger != null) {
             siddhiDebugger.checkBreakPoint(queryName, SiddhiDebugger.QueryTerminal.IN, firstEvent);
         }
+        long startTime = System.nanoTime();
         process(new ComplexEventChunk<StreamEvent>(firstEvent, currentEvent, this.batchProcessingAllowed));
+        long endTime = System.nanoTime();
+        markStat(startTime, endTime, events.length);
     }
 
 
@@ -155,16 +178,24 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
                 batchingStreamEventChunk = new ComplexEventChunk<StreamEvent>(this.batchProcessingAllowed);
             }
         }
+        long tempCurrentEventCount = currentEventCount.incrementAndGet();
         if (streamEventChunk != null) {
             if (siddhiDebugger != null) {
                 siddhiDebugger.checkBreakPoint(queryName, SiddhiDebugger.QueryTerminal.IN, streamEventChunk.getFirst());
             }
+            long startTime = System.nanoTime();
             process(streamEventChunk);
+            long endTime = System.nanoTime();
+            double avgThroughput = tempCurrentEventCount * 1000000000 / (endTime - startTime);
+            log.info("<" + queryName + "> " + tempCurrentEventCount + " Batch Throughput : " + decimalFormat.format(avgThroughput) + " eps");
+            throughputStatistics.addValue(avgThroughput);
+            currentEventCount.set(0);
         }
     }
 
     @Override
     public void receive(long timeStamp, Object[] data) {
+        long startTime = System.nanoTime();
         StreamEvent borrowedEvent = streamEventPool.borrowEvent();
         streamEventConverter.convertData(timeStamp, data, borrowedEvent);
         // Send to debugger
@@ -172,6 +203,8 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
             siddhiDebugger.checkBreakPoint(queryName, SiddhiDebugger.QueryTerminal.IN, borrowedEvent);
         }
         process(new ComplexEventChunk<StreamEvent>(borrowedEvent, borrowedEvent, this.batchProcessingAllowed));
+        long endTime = System.nanoTime();
+        markStat(startTime, endTime, 1);
     }
 
     protected void processAndClear(ComplexEventChunk<StreamEvent> streamEventChunk) {
@@ -210,5 +243,41 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
     public void addStatefulProcessor(PreStateProcessor stateProcessor) {
         stateProcessors.add(stateProcessor);
         stateProcessorsSize = stateProcessors.size();
+    }
+
+    private void markStat(long startTime, long endTime, long delta) {
+        totalDuration.addAndGet(endTime - startTime);
+        long tempCurrentEventCount = currentEventCount.addAndGet(delta);
+
+        if(tempCurrentEventCount >= performanceCalculateBatchCount) {
+            double avgThroughput = tempCurrentEventCount * 1000000000 / totalDuration.get();
+            log.info("<" + queryName + "> " + tempCurrentEventCount + " Events Throughput : " + decimalFormat.format(avgThroughput) + " eps");
+            throughputStatistics.addValue(avgThroughput);
+            totalDuration.set(0);
+            currentEventCount.set(0);
+        }
+    }
+
+    public void printStatistics() {
+        log.info(new StringBuilder()
+                .append("EventProcessTroughput ExecutionPlan=").append(queryName).append("_").append(streamId)
+                .append("|length=").append(throughputStatistics.getN())
+                .append("|Avg=").append(decimalFormat.format(throughputStatistics.getMean()))
+                .append("|Min=").append(decimalFormat.format(throughputStatistics.getMin()))
+                .append("|Max=").append(decimalFormat.format(throughputStatistics.getMax()))
+                .append("|Var=").append(decimalFormat.format(throughputStatistics.getVariance()))
+                .append("|StdDev=").append(decimalFormat.format(throughputStatistics.getStandardDeviation())).toString());
+    }
+
+    public void getStatistics(List<SynchronizedSummaryStatistics> statList) {
+        statList.add(throughputStatistics);
+    }
+
+    public int getPerformanceCalculateBatchCount() {
+        return performanceCalculateBatchCount;
+    }
+
+    public void setPerformanceCalculateBatchCount(int performanceCalculateBatchCount) {
+        this.performanceCalculateBatchCount = performanceCalculateBatchCount;
     }
 }

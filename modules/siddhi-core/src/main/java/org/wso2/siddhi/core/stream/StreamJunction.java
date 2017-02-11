@@ -22,6 +22,7 @@ import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
+import org.apache.commons.math3.stat.descriptive.SynchronizedSummaryStatistics;
 import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.ComplexEvent;
@@ -263,6 +264,15 @@ public class StreamJunction {
                 }
             }
         }
+        for (Receiver receiver : receivers) {
+            receiver.printStatistics();
+        }
+    }
+
+    public synchronized void getStatistics(List<SynchronizedSummaryStatistics> statList) {
+        for (Receiver receiver : receivers) {
+            receiver.getStatistics(statList);
+        }
     }
 
     public synchronized Publisher constructPublisher() {
@@ -300,6 +310,10 @@ public class StreamJunction {
         void receive(long timeStamp, Object[] data);
 
         void receive(Event[] events);
+
+        void printStatistics();
+
+        void getStatistics(List<SynchronizedSummaryStatistics> statList);
     }
 
     public class StreamHandler implements EventHandler<Event> {

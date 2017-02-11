@@ -17,6 +17,7 @@
  */
 package org.wso2.siddhi.core.stream.output;
 
+import org.apache.commons.math3.stat.descriptive.SynchronizedSummaryStatistics;
 import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.ComplexEvent;
@@ -110,5 +111,9 @@ public abstract class StreamCallback implements StreamJunction.Receiver {
     public synchronized void stopProcessing() {
 
     }
+
+    public void printStatistics() {}
+
+    public void getStatistics(List<SynchronizedSummaryStatistics> statList) {}
 
 }

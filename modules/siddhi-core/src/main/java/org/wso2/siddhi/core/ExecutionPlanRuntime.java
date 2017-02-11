@@ -18,6 +18,7 @@
 package org.wso2.siddhi.core;
 
 import com.lmax.disruptor.ExceptionHandler;
+import org.apache.commons.math3.stat.descriptive.SynchronizedSummaryStatistics;
 import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.debugger.SiddhiDebugger;
@@ -185,6 +186,12 @@ public class ExecutionPlanRuntime {
         }
         for (StreamJunction streamJunction : streamJunctionMap.values()) {
             streamJunction.startProcessing();
+        }
+    }
+
+    public void getStatistics(List<SynchronizedSummaryStatistics> statList) {
+        for (StreamJunction streamJunction : streamJunctionMap.values()) {
+            streamJunction.getStatistics(statList);
         }
     }
 
