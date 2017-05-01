@@ -24,7 +24,7 @@ public class StreamDefinition extends AbstractDefinition {
     public StreamDefinition() {
     }
 
-    protected StreamDefinition(String streamId) {
+    public StreamDefinition(String streamId) {
         super(streamId);
     }
 
