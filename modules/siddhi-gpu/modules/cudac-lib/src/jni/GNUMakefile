@@ -1,0 +1,32 @@
+ifndef CPPBUILD
+CPPBUILD=/home/prabodha/devel/research/frameworks/javacpp/javacpp/javacpp-presets/siddhigpu/cppbuild
+endif
+
+ifndef PLATFORM
+PLATFORM=linux-x86_64
+endif
+
+APP=SiddhiGpu
+
+SOURCES = GpuQueryRuntime.cpp  
+SOURCES += GpuStreamProcessor.cpp
+SOURCES += GpuKernel.cpp  
+SOURCES += GpuProcessorContext.cpp
+SOURCES += GpuUtils.cpp
+SOURCES += GpuFilterProcessor.cpp  
+SOURCES += GpuLengthSlidingWindowProcessor.cpp  
+SOURCES += GpuJoinProcessor.cpp
+
+deploy: build
+	#$(info $(CPPBUILD)/$(PLATFORM))
+	mkdir -p $(CPPBUILD)/$(PLATFORM)/include
+	mkdir -p $(CPPBUILD)/$(PLATFORM)/lib
+	cp *.h $(CPPBUILD)/$(PLATFORM)/include
+	cp *.so $(CPPBUILD)/$(PLATFORM)/lib
+
+build: clean
+	g++ $(SOURCES) -march=x86-64 -m64 -Wall -O3 -fPIC -shared -s -o libgpuqueryruntime.so
+	
+clean:
+	-rm *.o *.so 
+

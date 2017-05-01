@@ -1,0 +1,189 @@
+include ./findcudalib.mk
+
+# Location of the CUDA Toolkit
+CUDA_PATH ?= /usr/local/cuda
+
+CPPBUILD=/home/arosha/projects/Siddhi/projects/2017-04-30-all-projects/siddhi-b4-gpu-changes/gpu-changes-in-Prabodha/siddhi/modules/siddhi-gpu/modules/javacpp-cudaclib/cppbuild
+ifndef CPPBUILD
+$(error CPPBUILD not defined!!)
+endif
+
+CUB_LIB_PATH := /home/arosha/install/cub/cub-1.3.2
+
+PLATFORM=linux-x86_64
+ifndef PLATFORM
+$(error PLATFORM not defined!!)
+endif
+
+MAXREGCOUNT=32
+
+# internal flags
+NVCCFLAGS   := -m${OS_SIZE}
+CCFLAGS     := -fPIC -m${OS_SIZE}
+NVCCLDFLAGS := -shared
+LDFLAGS     := --shared -fPIC
+
+# Extra user flags
+EXTRA_NVCCFLAGS   ?=
+EXTRA_NVCCLDFLAGS ?=
+EXTRA_LDFLAGS     ?=
+EXTRA_CCFLAGS     ?=
+
+# OS-specific build flags
+ifneq ($(DARWIN),) 
+  LDFLAGS += -rpath $(CUDA_PATH)/lib
+  CCFLAGS += -arch $(OS_ARCH) $(STDLIB)  
+else
+  ifeq ($(OS_ARCH),armv7l)
+    ifeq ($(abi),gnueabi)
+      CCFLAGS += -mfloat-abi=softfp
+    else
+      # default to gnueabihf
+      override abi := gnueabihf
+      LDFLAGS += --dynamic-linker=/lib/ld-linux-armhf.so.3
+      CCFLAGS += -mfloat-abi=hard
+    endif
+  endif
+endif
+
+ifeq ($(ARMv7),1)
+NVCCFLAGS += -target-cpu-arch ARM
+ifneq ($(TARGET_FS),) 
+CCFLAGS += --sysroot=$(TARGET_FS)
+LDFLAGS += --sysroot=$(TARGET_FS)
+LDFLAGS += -rpath-link=$(TARGET_FS)/lib
+LDFLAGS += -rpath-link=$(TARGET_FS)/usr/lib
+LDFLAGS += -rpath-link=$(TARGET_FS)/usr/lib/arm-linux-$(abi)
+endif
+endif
+
+# Debug build flags
+ifeq ($(dbg),1)
+      NVCCFLAGS += -D_FORCE_INLINES -g -G --ptxas-options=-v -maxrregcount=${MAXREGCOUNT} -lineinfo
+      TARGET := debug
+else
+      NVCCFLAGS += -D_FORCE_INLINES -po -maxrregcount=${MAXREGCOUNT} -O3  --ptxas-options=-v -DNDEBUG
+      CCFLAGS += -O3
+      LDFLAGS += -O3
+      TARGET := release
+endif
+
+ifeq ($(GPU_DEBUG),1)
+	CCFLAGS += -DGPU_DEBUG=1
+endif
+
+ifeq ($(GPU_DEBUG),2)
+	CCFLAGS += -DGPU_DEBUG=2
+endif
+
+ifeq ($(GPU_DEBUG),3)
+	CCFLAGS += -DGPU_DEBUG=3
+endif
+
+ifeq ($(GPU_DEBUG),4)
+	CCFLAGS += -DGPU_DEBUG=4
+endif
+
+ifeq ($(GPU_DEBUG),5)
+	CCFLAGS += -DGPU_DEBUG=5
+endif
+
+ifeq ($(KERNEL_TIME),1)
+	CCFLAGS += -DKERNEL_TIME
+endif
+
+ALL_CCFLAGS := 
+ALL_CCFLAGS += $(NVCCFLAGS)
+ALL_CCFLAGS += $(addprefix -Xcompiler ,$(CCFLAGS))
+ALL_CCFLAGS += $(EXTRA_NVCCFLAGS)
+ALL_CCFLAGS += $(addprefix -Xcompiler ,$(EXTRA_CCFLAGS))
+
+ALL_LDFLAGS := 
+ALL_LDFLAGS += $(ALL_CCFLAGS)
+ALL_LDFLAGS += $(NVCCLDFLAGS)
+ALL_LDFLAGS += $(addprefix -Xlinker ,$(LDFLAGS))
+ALL_LDFLAGS += $(EXTRA_NVCCLDFLAGS)
+ALL_LDFLAGS += $(addprefix -Xlinker ,$(EXTRA_LDFLAGS))
+
+
+# Common includes and paths for CUDA
+INCLUDES  := -I. -I$(CUB_LIB_PATH)
+LIBRARIES := -L.
+
+################################################################################
+
+# CUDA code generation flags
+GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
+GENCODE_SM30    := -gencode arch=compute_30,code=sm_30 -gencode arch=compute_35,code=\"sm_35,compute_35\"
+CUDA_ARCH := -gencode arch=compute_20,code=sm_20 \
+-gencode arch=compute_20,code=sm_21 \
+-gencode arch=compute_30,code=sm_30 \
+-gencode arch=compute_35,code=sm_35 \
+-gencode arch=compute_50,code=sm_50 \
+-gencode arch=compute_50,code=compute_50
+GENCODE_FLAGS   := $(CUDA_ARCH)
+
+################################################################################
+.SUFFIXES: .cu
+
+OUT=libgpuqueryruntime.so
+
+SRC = GpuQueryRuntime.cpp  
+SRC += GpuStreamProcessor.cpp
+SRC += GpuKernel.cpp  
+SRC += GpuProcessorContext.cpp
+SRC += GpuUtils.cpp
+SRC += GpuFilterProcessor.cpp  
+SRC += GpuLengthSlidingWindowProcessor.cpp  
+SRC += GpuJoinProcessor.cpp 
+SRC += CpuFilterKernel.cpp
+
+CULIBS = GpuCudaHelper
+CULIBS += GpuCudaCommon 
+CULIBS += GpuEventBuffer 
+CULIBS += GpuIntBuffer 
+CULIBS += GpuRawByteBuffer 
+CULIBS += GpuProcessorContext 
+CULIBS += GpuStreamEventBuffer 
+CULIBS += GpuWindowEventBuffer
+CULIBS += GpuFilterKernel 
+CULIBS += GpuLengthSlidingWindowKernel
+CULIBS += GpuJoinKernel 
+CULIBS += GpuFilterKernelCore 
+CULIBS += GpuJoinKernelCore
+
+CULIBSRC = $(addsuffix .cu , $(CULIBS))
+CULIBSTATIC = $(addsuffix .a, $(addprefix lib, $(CULIBS)))
+LD_CULIBS = $(addprefix -l, $(CULIBS))
+
+
+# Target rules
+all: clean $(OUT) copy
+
+OBJ=$(SRC:.cpp=.o)
+OBJCU=$(CULIBSRC:.cu=.o)
+
+$(OUT): $(OBJ) $(CULIBSTATIC) 
+	$(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) $(LIBRARIES) $(LD_CULIBS) $(OBJ) -o $@
+
+$(CULIBSTATIC): $(OBJCU)
+	$(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -lib $(patsubst lib%.a,%.o,$@) -o $@
+
+.cpp.o:
+	$(GCC) $(INCLUDES) $(CCFLAGS) $(EXTRA_CCFLAGS) -o $@ -c $<
+
+.cu.o:
+	$(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -dc $<
+
+
+clean:
+	rm -f $(OUT) $(OBJ) $(OBJCU) $(CULIBSTATIC) $(CULIBS)
+	
+copy:
+	#$(info $(CPPBUILD)/$(PLATFORM))
+	mkdir -p $(CPPBUILD)/$(PLATFORM)/include
+	mkdir -p $(CPPBUILD)/$(PLATFORM)/lib
+	cp *.h $(CPPBUILD)/$(PLATFORM)/include
+	cp *.so $(CPPBUILD)/$(PLATFORM)/lib
+
+clobber: clean
