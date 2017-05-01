@@ -25,7 +25,7 @@ import java.io.Serializable;
 public interface ComplexEvent extends Serializable {
 
     enum Type {
-        CURRENT, EXPIRED, TIMER, RESET
+        CURRENT, EXPIRED, TIMER, RESET, NONE
     }
 
     ComplexEvent getNext();

@@ -19,6 +19,7 @@ package org.wso2.siddhi.core.window;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.ComplexEvent;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.event.state.StateEvent;
 import org.wso2.siddhi.core.event.stream.MetaStreamEvent;
 import org.wso2.siddhi.core.event.stream.StreamEvent;
@@ -337,6 +338,11 @@ public class EventWindow implements FindableProcessor, Snapshotable {
 
         public Processor cloneProcessor(String key) {
             return new StreamPublishProcessor(this.outputEventType);
+        }
+
+        @Override
+        public void configureProcessor(MetaComplexEvent metaEvent) {
+            
         }
     }
 }

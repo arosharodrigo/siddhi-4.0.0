@@ -34,6 +34,7 @@ public class SiddhiContext {
 
     private static final Logger log = Logger.getLogger(SiddhiContext.class);
 
+    private int eventBufferSize;
     private ExceptionHandler<Object> defaultDisrupterExceptionHandler;
     private Map<String, Class> siddhiExtensions;
     private PersistenceStore persistenceStore = null;
@@ -62,6 +63,14 @@ public class SiddhiContext {
                 log.error("Disruptor encountered an error on shutdown" , throwable);
             }
         };
+    }
+
+    public int getEventBufferSize() {
+        return eventBufferSize;
+    }
+
+    public void setEventBufferSize(int eventBufferSize) {
+        this.eventBufferSize = eventBufferSize;
     }
 
     public Map<String, Class> getSiddhiExtensions() {

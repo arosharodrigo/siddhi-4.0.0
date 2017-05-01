@@ -20,6 +20,7 @@ package org.wso2.siddhi.core.query.input.stream.single;
 
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.query.processor.Processor;
 import org.wso2.siddhi.core.util.Schedulable;
 import org.wso2.siddhi.core.util.ThreadBarrier;
@@ -91,6 +92,11 @@ public class EntryValveProcessor implements Processor, Schedulable {
     @Override
     public Processor cloneProcessor(String key) {
         return new EntryValveProcessor(executionPlanContext);
+    }
+
+    @Override
+    public void configureProcessor(MetaComplexEvent metaEvent) {
+
     }
 
 }

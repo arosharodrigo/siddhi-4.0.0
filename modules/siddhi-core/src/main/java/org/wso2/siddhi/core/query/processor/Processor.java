@@ -18,6 +18,7 @@
 package org.wso2.siddhi.core.query.processor;
 
 import org.wso2.siddhi.core.event.ComplexEventChunk;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 
 public interface Processor {
 
@@ -56,5 +57,7 @@ public interface Processor {
      * @return cloned processor
      */
     Processor cloneProcessor(String key);
+
+    public void configureProcessor(MetaComplexEvent metaEvent);
 
 }

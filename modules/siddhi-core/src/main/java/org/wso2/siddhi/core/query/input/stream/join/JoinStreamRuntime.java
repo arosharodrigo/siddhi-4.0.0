@@ -100,4 +100,8 @@ public class JoinStreamRuntime implements StreamRuntime {
     public MetaComplexEvent getMetaComplexEvent() {
         return metaStateEvent;
     }
+
+    @Override
+    public void configureRuntime(MetaComplexEvent metaComplexEvent) {
+    }
 }

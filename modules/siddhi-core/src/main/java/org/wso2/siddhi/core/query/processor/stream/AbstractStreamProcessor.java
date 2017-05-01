@@ -20,6 +20,7 @@ package org.wso2.siddhi.core.query.processor.stream;
 import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.event.stream.MetaStreamEvent;
 import org.wso2.siddhi.core.event.stream.StreamEvent;
 import org.wso2.siddhi.core.event.stream.StreamEventCloner;
@@ -149,6 +150,11 @@ public abstract class AbstractStreamProcessor implements Processor, EternalRefer
         } catch (Exception e) {
             throw new ExecutionPlanRuntimeException("Exception in cloning " + this.getClass().getCanonicalName(), e);
         }
+    }
+
+    @Override
+    public void configureProcessor(MetaComplexEvent metaEvent) {
+
     }
 
     public void constructStreamEventPopulater(MetaStreamEvent metaStreamEvent, int streamEventChainIndex) {

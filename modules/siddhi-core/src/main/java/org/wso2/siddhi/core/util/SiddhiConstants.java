@@ -45,6 +45,22 @@ public final class SiddhiConstants {
     public static final String ANNOTATION_IDLE_TIME = "IdleTime";
     public static final String ANNOTATION_INCREMENT = "Increment";
 
+    public static final String ANNOTATION_INFO = "info";
+    public static final String ANNOTATION_ELEMENT_INFO_NAME = "name";
+
+    public static final String ANNOTATION_GPU = "gpu";
+    public static final String ANNOTATION_ELEMENT_GPU_BATCH_MAX_SIZE = "batch.max.size";
+    public static final String ANNOTATION_ELEMENT_GPU_BATCH_MIN_SIZE = "batch.min.size";
+    public static final String ANNOTATION_ELEMENT_GPU_BLOCK_SIZE = "block.size";
+    public static final String ANNOTATION_ELEMENT_GPU_STRING_SIZES = "string.sizes";
+    public static final String ANNOTATION_ELEMENT_GPU_CUDA_DEVICE = "cuda.device";
+    public static final String ANNOTATION_ELEMENT_GPU_BATCH_SCHEDULE = "batch.schedule";
+    public static final String ANNOTATION_ELEMENT_GPU_THREAD_WORK_SIZE = "work.size";
+    public static final String ANNOTATION_ELEMENT_GPU_SELECTOR_WORKERS = "selector.workers";
+
+    public static final String ANNOTATION_PERFORMANCE = "performance";
+    public static final String ANNOTATION_ELEMENT_PERFORMANCE_CALC_BATCH_COUNT = "batch.count";
+
     public static final String TRUE = "true";
     public static final String TRIGGER_START = "start";
     public static final int DEFAULT_EVENT_BUFFER_SIZE = 1024;

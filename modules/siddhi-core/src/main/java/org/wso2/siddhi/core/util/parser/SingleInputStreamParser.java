@@ -17,6 +17,7 @@
  */
 package org.wso2.siddhi.core.util.parser;
 
+import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.event.state.MetaStateEvent;
@@ -25,6 +26,10 @@ import org.wso2.siddhi.core.exception.ExecutionPlanCreationException;
 import org.wso2.siddhi.core.exception.OperationNotSupportedException;
 import org.wso2.siddhi.core.executor.ExpressionExecutor;
 import org.wso2.siddhi.core.executor.VariableExpressionExecutor;
+import org.wso2.siddhi.core.gpu.config.GpuQueryContext;
+import org.wso2.siddhi.core.gpu.query.input.GpuProcessStreamReceiver;
+import org.wso2.siddhi.core.gpu.query.input.stream.GpuStreamRuntime;
+import org.wso2.siddhi.core.gpu.util.parser.GpuExpressionParser;
 import org.wso2.siddhi.core.query.input.ProcessStreamReceiver;
 import org.wso2.siddhi.core.query.input.stream.single.EntryValveProcessor;
 import org.wso2.siddhi.core.query.input.stream.single.SingleStreamRuntime;
@@ -34,14 +39,17 @@ import org.wso2.siddhi.core.query.processor.filter.FilterProcessor;
 import org.wso2.siddhi.core.query.processor.stream.AbstractStreamProcessor;
 import org.wso2.siddhi.core.query.processor.stream.StreamProcessor;
 import org.wso2.siddhi.core.query.processor.stream.function.StreamFunctionProcessor;
+import org.wso2.siddhi.core.query.processor.stream.window.LengthWindowProcessor;
 import org.wso2.siddhi.core.query.processor.stream.window.WindowProcessor;
 import org.wso2.siddhi.core.table.EventTable;
 import org.wso2.siddhi.core.util.Scheduler;
 import org.wso2.siddhi.core.util.SiddhiClassLoader;
 import org.wso2.siddhi.core.util.SiddhiConstants;
+import org.wso2.siddhi.core.util.SystemTimeBasedScheduler;
 import org.wso2.siddhi.core.util.extension.holder.StreamFunctionProcessorExtensionHolder;
 import org.wso2.siddhi.core.util.extension.holder.StreamProcessorExtensionHolder;
 import org.wso2.siddhi.core.util.extension.holder.WindowProcessorExtensionHolder;
+import org.wso2.siddhi.gpu.jni.SiddhiGpu;
 import org.wso2.siddhi.query.api.definition.AbstractDefinition;
 import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.execution.query.input.handler.Filter;
@@ -57,6 +65,62 @@ import java.util.List;
 import java.util.Map;
 
 public class SingleInputStreamParser {
+
+    private static final Logger log = Logger.getLogger(SingleInputStreamParser.class);
+
+    public static SingleStreamRuntime parseInputStream(SingleInputStream inputStream, ExecutionPlanContext executionPlanContext,
+                                                       List<VariableExpressionExecutor> variableExpressionExecutors, Map<String, AbstractDefinition> streamDefinitionMap,
+                                                       Map<String, AbstractDefinition> tableDefinitionMap, Map<String, AbstractDefinition> windowDefinitionMap, Map<String, EventTable> eventTableMap, MetaComplexEvent metaComplexEvent,
+                                                       ProcessStreamReceiver processStreamReceiver, boolean supportsBatchProcessing, boolean outputExpectsExpiredEvents, String queryName, GpuQueryContext gpuQueryContext) {
+
+        Processor processor = null;
+        EntryValveProcessor singleThreadValve = null;
+        boolean first = true;
+
+        MetaStreamEvent metaStreamEvent;
+        if (metaComplexEvent instanceof MetaStateEvent) {
+            metaStreamEvent = new MetaStreamEvent();
+            ((MetaStateEvent) metaComplexEvent).addEvent(metaStreamEvent);
+            initMetaStreamEvent(inputStream, streamDefinitionMap, tableDefinitionMap, windowDefinitionMap, metaStreamEvent);
+        } else {
+            metaStreamEvent = (MetaStreamEvent) metaComplexEvent;
+            initMetaStreamEvent(inputStream, streamDefinitionMap, tableDefinitionMap, windowDefinitionMap, metaStreamEvent);
+        }
+
+        if (!inputStream.getStreamHandlers().isEmpty()) {
+            /* create processor chain from StreamHandlers */
+            for (StreamHandler handler : inputStream.getStreamHandlers()) {
+
+                Processor currentProcessor = generateProcessor(handler, metaComplexEvent, variableExpressionExecutors, executionPlanContext,
+                        eventTableMap, supportsBatchProcessing, outputExpectsExpiredEvents, queryName, ((GpuProcessStreamReceiver)processStreamReceiver), gpuQueryContext);
+
+                if (currentProcessor instanceof SchedulingProcessor) {
+                    if (singleThreadValve == null) {
+
+                        singleThreadValve = new EntryValveProcessor(executionPlanContext);
+                        if (first) {
+                            processor = singleThreadValve;
+                            first = false;
+                        } else {
+                            processor.setToLast(singleThreadValve);
+                        }
+                    }
+                    Scheduler scheduler = new SystemTimeBasedScheduler(executionPlanContext.getScheduledExecutorService(), singleThreadValve, executionPlanContext);
+                    ((SchedulingProcessor) currentProcessor).setScheduler(scheduler);
+                }
+
+                if (first) {
+                    processor = currentProcessor;
+                    first = false;
+                } else {
+                    processor.setToLast(currentProcessor);
+                }
+            }
+        }
+
+        metaStreamEvent.initializeAfterWindowData();
+        return new GpuStreamRuntime(processStreamReceiver, processor, metaComplexEvent);
+    }
 
     /**
      * Parse single InputStream and return SingleStreamRuntime
@@ -130,6 +194,77 @@ public class SingleInputStreamParser {
 
     }
 
+    public static Processor generateProcessor(StreamHandler handler, MetaComplexEvent metaEvent, List<VariableExpressionExecutor> variableExpressionExecutors,
+                                              ExecutionPlanContext executionPlanContext, Map<String, EventTable> eventTableMap,
+                                              boolean supportsBatchProcessing, boolean outputExpectsExpiredEvents, String queryName,
+                                              GpuProcessStreamReceiver gpuProcessStreamReceiver, GpuQueryContext gpuQueryContext) {
+
+        ExpressionExecutor[] inputExpressions = new ExpressionExecutor[handler.getParameters().length];
+        Expression[] parameters = handler.getParameters();
+        MetaStreamEvent metaStreamEvent;
+        int stateIndex = SiddhiConstants.UNKNOWN_STATE;
+        if (metaEvent instanceof MetaStateEvent) {
+            stateIndex = ((MetaStateEvent) metaEvent).getStreamEventCount() - 1;
+            metaStreamEvent = ((MetaStateEvent) metaEvent).getMetaStreamEvent(stateIndex);
+        } else {
+            metaStreamEvent = (MetaStreamEvent) metaEvent;
+        }
+        for (int i = 0, parametersLength = parameters.length; i < parametersLength; i++) {
+            inputExpressions[i] = ExpressionParser.parseExpression(parameters[i], metaEvent, stateIndex, eventTableMap,
+                    variableExpressionExecutors, executionPlanContext, false, SiddhiConstants.LAST, queryName);
+        }
+
+//        String streamId = gpuProcessStreamReceiver.getStreamId();
+//        GpuQueryProcessor gpuQueryProcessor = gpuProcessStreamReceiver.getGpuQueryProcessor();
+//        SiddhiGpu.GpuQueryRuntime gpuQueryRuntime = gpuQueryProcessor.getGpuQueryRuntime();
+
+        if (handler instanceof Filter) {
+
+            // add filter processor
+            GpuExpressionParser gpuExpressionParser = new GpuExpressionParser();
+            SiddhiGpu.GpuFilterProcessor gpuFilterProcessor = gpuExpressionParser.parseFilterExpression(parameters[0], metaEvent, stateIndex, executionPlanContext, gpuQueryContext);
+            gpuFilterProcessor.SetThreadBlockSize(gpuQueryContext.getThreadsPerBlock());
+            gpuProcessStreamReceiver.addGpuProcessor(gpuFilterProcessor);
+//            gpuQueryRuntime.AddProcessor(streamId, gpuFilterProcessor);
+//            gpuQueryProcessor.AddGpuProcessor(gpuFilterProcessor);
+
+            return new FilterProcessor(inputExpressions[0]);
+
+        } else if (handler instanceof Window) {
+            WindowProcessor windowProcessor = (WindowProcessor) SiddhiClassLoader.loadSiddhiImplementation(((Window) handler).getFunction(),
+                    WindowProcessor.class);
+            windowProcessor.initProcessor(metaStreamEvent.getLastInputDefinition(), inputExpressions, executionPlanContext, outputExpectsExpiredEvents, queryName);
+
+            // TODO: only support length window
+            if(windowProcessor instanceof LengthWindowProcessor)
+            {
+                LengthWindowProcessor lengthWindowProcessor = (LengthWindowProcessor) windowProcessor;
+
+                SiddhiGpu.GpuLengthSlidingWindowProcessor gpuLengthWindowProcessor =
+                        new SiddhiGpu.GpuLengthSlidingWindowProcessor(lengthWindowProcessor.getLength());
+                gpuLengthWindowProcessor.SetThreadBlockSize(gpuQueryContext.getThreadsPerBlock());
+                gpuProcessStreamReceiver.addGpuProcessor(gpuLengthWindowProcessor);
+//                gpuQueryRuntime.AddProcessor(streamId, gpuLengthWindowProcessor);
+//                gpuQueryProcessor.AddGpuProcessor(gpuLengthWindowProcessor);
+            }
+            else
+            {
+                throw new OperationNotSupportedException(windowProcessor.getClass().getSimpleName() + " not supported in GPU processing");
+            }
+
+            return windowProcessor;
+
+        } else if (handler instanceof StreamFunction) {
+            StreamFunctionProcessor streamProcessor = (StreamFunctionProcessor) SiddhiClassLoader.loadSiddhiImplementation(
+                    ((StreamFunction) handler).getFunction(), StreamFunctionProcessor.class);
+            metaStreamEvent.addInputDefinition(streamProcessor.initProcessor(metaStreamEvent.getLastInputDefinition(),
+                    inputExpressions, executionPlanContext, outputExpectsExpiredEvents, queryName));
+            return streamProcessor;
+
+        } else {
+            throw new IllegalStateException(handler.getClass().getName() + " is not supported");
+        }
+    }
 
     public static Processor generateProcessor(StreamHandler streamHandler, MetaComplexEvent metaEvent, List<VariableExpressionExecutor> variableExpressionExecutors, ExecutionPlanContext executionPlanContext, Map<String, EventTable> eventTableMap, boolean supportsBatchProcessing, boolean outputExpectsExpiredEvents, String queryName) {
         Expression[] parameters = streamHandler.getParameters();

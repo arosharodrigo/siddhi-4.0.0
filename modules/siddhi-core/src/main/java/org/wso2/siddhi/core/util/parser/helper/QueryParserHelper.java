@@ -27,6 +27,8 @@ import org.wso2.siddhi.core.event.stream.MetaStreamEvent;
 import org.wso2.siddhi.core.event.stream.StreamEventCloner;
 import org.wso2.siddhi.core.event.stream.StreamEventPool;
 import org.wso2.siddhi.core.executor.VariableExpressionExecutor;
+import org.wso2.siddhi.core.gpu.query.input.stream.GpuStreamRuntime;
+import org.wso2.siddhi.core.gpu.query.input.stream.join.GpuJoinStreamRuntime;
 import org.wso2.siddhi.core.query.input.ProcessStreamReceiver;
 import org.wso2.siddhi.core.query.input.stream.StreamRuntime;
 import org.wso2.siddhi.core.query.input.stream.join.JoinProcessor;
@@ -35,8 +37,10 @@ import org.wso2.siddhi.core.query.input.stream.state.StreamPreStateProcessor;
 import org.wso2.siddhi.core.query.processor.Processor;
 import org.wso2.siddhi.core.query.processor.SchedulingProcessor;
 import org.wso2.siddhi.core.query.processor.stream.AbstractStreamProcessor;
+import org.wso2.siddhi.core.query.processor.stream.StreamProcessor;
 import org.wso2.siddhi.core.util.lock.LockWrapper;
 import org.wso2.siddhi.query.api.definition.Attribute;
+import org.wso2.siddhi.query.api.definition.StreamDefinition;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -154,8 +158,27 @@ public class QueryParserHelper {
     }
 
     public static void initStreamRuntime(StreamRuntime runtime, MetaComplexEvent metaComplexEvent, LockWrapper lockWrapper, String queryName) {
+        if (runtime instanceof GpuStreamRuntime) {
+            initGpuStreamRuntime((GpuStreamRuntime) runtime, 0, metaComplexEvent, null);
+        } else if (runtime instanceof GpuJoinStreamRuntime) {
+            MetaStateEvent metaStateEvent = (MetaStateEvent) metaComplexEvent;
 
-        if (runtime instanceof SingleStreamRuntime) {
+            MetaStreamEvent outputMetaStreamEvent = new MetaStreamEvent();
+            outputMetaStreamEvent.addInputDefinition(metaStateEvent.getOutputStreamDefinition());
+//            outputMetaStreamEvent.setInitialAttributeSize(metaStateEvent.getOutputDataAttributes().size());
+
+            StreamDefinition streamDef = metaStateEvent.getOutputStreamDefinition();
+            for(Attribute attrib : streamDef.getAttributeList()) {
+                outputMetaStreamEvent.addOutputData(attrib);
+            }
+
+            StateEventPool stateEventPool = new StateEventPool(metaStateEvent, 5);
+            MetaStreamEvent[] metaStreamEvents = metaStateEvent.getMetaStreamEvents();
+            for (int i = 0, metaStreamEventsLength = metaStreamEvents.length; i < metaStreamEventsLength; i++) {
+                initSingleStreamRuntime(runtime.getSingleStreamRuntimes().get(i),
+                        i, outputMetaStreamEvent, stateEventPool, lockWrapper, queryName);
+            }
+        } else if (runtime instanceof SingleStreamRuntime) {
             initSingleStreamRuntime((SingleStreamRuntime) runtime, 0, metaComplexEvent, null, lockWrapper, queryName);
         } else {
             MetaStateEvent metaStateEvent = (MetaStateEvent) metaComplexEvent;
@@ -197,6 +220,46 @@ public class QueryParserHelper {
             if (stateEventPool != null && processor instanceof JoinProcessor) {
                 ((JoinProcessor) processor).setStateEventPool(stateEventPool);
                 ((JoinProcessor) processor).setJoinLock(lockWrapper);
+            }
+            if (stateEventPool != null && processor instanceof StreamPreStateProcessor) {
+                ((StreamPreStateProcessor) processor).setStateEventPool(stateEventPool);
+                ((StreamPreStateProcessor) processor).setStreamEventPool(streamEventPool);
+                ((StreamPreStateProcessor) processor).setStreamEventCloner(new StreamEventCloner(metaStreamEvent, streamEventPool));
+                if (metaComplexEvent instanceof MetaStateEvent) {
+                    ((StreamPreStateProcessor) processor).setStateEventCloner(new StateEventCloner(((MetaStateEvent) metaComplexEvent), stateEventPool));
+                }
+            }
+
+            processor = processor.getNextProcessor();
+        }
+    }
+
+    private static void initGpuStreamRuntime(GpuStreamRuntime gpuStreamRuntime, int streamEventChainIndex,
+                                             MetaComplexEvent metaComplexEvent, StateEventPool stateEventPool) {
+        MetaStreamEvent metaStreamEvent;
+
+        if (metaComplexEvent instanceof MetaStateEvent) {
+            metaStreamEvent = ((MetaStateEvent) metaComplexEvent).getMetaStreamEvent(streamEventChainIndex);
+        } else {
+            metaStreamEvent = (MetaStreamEvent) metaComplexEvent;
+        }
+        StreamEventPool streamEventPool = new StreamEventPool(metaStreamEvent, 5);
+        ProcessStreamReceiver processStreamReceiver = gpuStreamRuntime.getProcessStreamReceiver();
+        processStreamReceiver.setMetaStreamEvent(metaStreamEvent);
+        processStreamReceiver.setStreamEventPool(streamEventPool);
+        processStreamReceiver.init();
+        Processor processor = gpuStreamRuntime.getProcessorChain();
+        while (processor != null) {
+            if (processor instanceof SchedulingProcessor) {
+                ((SchedulingProcessor) processor).getScheduler().setStreamEventPool(streamEventPool);
+            }
+            if (processor instanceof StreamProcessor) {
+                ((StreamProcessor) processor).setStreamEventCloner(new StreamEventCloner(metaStreamEvent,
+                        streamEventPool));
+                ((StreamProcessor) processor).constructStreamEventPopulater(metaStreamEvent, streamEventChainIndex);
+            }
+            if (stateEventPool != null && processor instanceof JoinProcessor) {
+                ((JoinProcessor) processor).setStateEventPool(stateEventPool);
             }
             if (stateEventPool != null && processor instanceof StreamPreStateProcessor) {
                 ((StreamPreStateProcessor) processor).setStateEventPool(stateEventPool);

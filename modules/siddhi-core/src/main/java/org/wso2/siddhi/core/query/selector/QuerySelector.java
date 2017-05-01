@@ -22,6 +22,7 @@ import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.ComplexEvent;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
 import org.wso2.siddhi.core.event.GroupedComplexEvent;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.event.state.populater.StateEventPopulator;
 import org.wso2.siddhi.core.event.stream.StreamEvent;
 import org.wso2.siddhi.core.exception.ExecutionPlanCreationException;
@@ -40,20 +41,20 @@ public class QuerySelector implements Processor {
 
 
     private static final Logger log = Logger.getLogger(QuerySelector.class);
-    private static final ThreadLocal<String> keyThreadLocal = new ThreadLocal<String>();
-    private Selector selector;
-    private ExecutionPlanContext executionPlanContext;
-    private boolean currentOn = false;
-    private boolean expiredOn = false;
-    private boolean containsAggregator = false;
-    private OutputRateLimiter outputRateLimiter;
-    private List<AttributeProcessor> attributeProcessorList;
-    private ConditionExpressionExecutor havingConditionExecutor = null;
-    private boolean isGroupBy = false;
-    private GroupByKeyGenerator groupByKeyGenerator;
-    private String id;
-    private StateEventPopulator eventPopulator;
-    private boolean batchingEnabled = true;
+    protected static final ThreadLocal<String> keyThreadLocal = new ThreadLocal<String>();
+    protected Selector selector;
+    protected ExecutionPlanContext executionPlanContext;
+    protected boolean currentOn = false;
+    protected boolean expiredOn = false;
+    protected boolean containsAggregator = false;
+    protected OutputRateLimiter outputRateLimiter;
+    protected List<AttributeProcessor> attributeProcessorList;
+    protected ConditionExpressionExecutor havingConditionExecutor = null;
+    protected boolean isGroupBy = false;
+    protected GroupByKeyGenerator groupByKeyGenerator;
+    protected String id;
+    protected StateEventPopulator eventPopulator;
+    protected boolean batchingEnabled = true;
 
     public QuerySelector(String id, Selector selector, boolean currentOn, boolean expiredOn, ExecutionPlanContext executionPlanContext) {
         this.id = id;
@@ -285,6 +286,11 @@ public class QuerySelector implements Processor {
     @Override
     public Processor cloneProcessor(String key) {
         return null;
+    }
+
+    @Override
+    public void configureProcessor(MetaComplexEvent metaEvent) {
+
     }
 
     public List<AttributeProcessor> getAttributeProcessorList() {

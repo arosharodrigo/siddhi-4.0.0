@@ -30,8 +30,8 @@ import org.wso2.siddhi.core.event.stream.StreamEventPool;
  */
 public class ConversionStreamEventChunk extends ComplexEventChunk<StreamEvent> {
 
-    private StreamEventConverter streamEventConverter;
-    private StreamEventPool streamEventPool;
+    protected StreamEventConverter streamEventConverter;
+    protected StreamEventPool streamEventPool;
 
     public ConversionStreamEventChunk(MetaStreamEvent metaStreamEvent, StreamEventPool streamEventPool) {
         super(false);

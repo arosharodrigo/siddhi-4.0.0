@@ -108,4 +108,11 @@ public class SingleStreamRuntime implements StreamRuntime {
     public MetaComplexEvent getMetaComplexEvent() {
         return metaComplexEvent;
     }
+
+    @Override
+    public void configureRuntime(MetaComplexEvent metaComplexEvent) {
+        if(processorChain != null) {
+            processorChain.configureProcessor(metaComplexEvent);
+        }
+    }
 }

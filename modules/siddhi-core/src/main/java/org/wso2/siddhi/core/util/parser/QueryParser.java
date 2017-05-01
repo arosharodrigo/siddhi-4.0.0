@@ -17,12 +17,18 @@
  */
 package org.wso2.siddhi.core.util.parser;
 
+import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.state.MetaStateEvent;
+import org.wso2.siddhi.core.event.state.populater.SkipStateEventPopulator;
 import org.wso2.siddhi.core.event.state.populater.StateEventPopulatorFactory;
 import org.wso2.siddhi.core.event.stream.MetaStreamEvent;
 import org.wso2.siddhi.core.exception.ExecutionPlanCreationException;
 import org.wso2.siddhi.core.executor.VariableExpressionExecutor;
+import org.wso2.siddhi.core.gpu.config.GpuQueryContext;
+import org.wso2.siddhi.core.gpu.query.selector.GpuQuerySelector;
+import org.wso2.siddhi.core.gpu.util.parser.GpuInputStreamParser;
+import org.wso2.siddhi.core.gpu.util.parser.GpuSelectorParser;
 import org.wso2.siddhi.core.query.QueryRuntime;
 import org.wso2.siddhi.core.query.input.stream.StreamRuntime;
 import org.wso2.siddhi.core.query.input.stream.join.JoinStreamRuntime;
@@ -38,6 +44,7 @@ import org.wso2.siddhi.core.util.lock.LockWrapper;
 import org.wso2.siddhi.core.util.parser.helper.QueryParserHelper;
 import org.wso2.siddhi.core.util.statistics.LatencyTracker;
 import org.wso2.siddhi.core.window.EventWindow;
+import org.wso2.siddhi.query.api.annotation.Annotation;
 import org.wso2.siddhi.query.api.annotation.Element;
 import org.wso2.siddhi.query.api.definition.AbstractDefinition;
 import org.wso2.siddhi.query.api.exception.DuplicateDefinitionException;
@@ -56,6 +63,8 @@ import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class QueryParser {
+
+    private static final Logger log = Logger.getLogger(QueryParser.class);
 
     /**
      * Parse a query and return corresponding QueryRuntime.
@@ -84,9 +93,12 @@ public class QueryParser {
             String queryName = null;
             if (nameElement != null) {
                 queryName = nameElement.getValue();
+                log.info("<" + executionPlanContext.getName() + "> Parsing <" + nameElement.getValue() + ">");
             } else {
                 queryName = "query_" + UUID.randomUUID().toString();
+                log.info("<" + executionPlanContext.getName() + "> Parsing query");
             }
+
             if (executionPlanContext.isStatsEnabled() && executionPlanContext.getStatisticsManager() != null) {
                 if (nameElement != null) {
                     String metricName =
@@ -107,89 +119,135 @@ public class QueryParser {
             if (outputEventType != OutputStream.OutputEventType.CURRENT_EVENTS) {
                 outputExpectsExpiredEvents = true;
             }
-            StreamRuntime streamRuntime = InputStreamParser.parse(query.getInputStream(),
-                    executionPlanContext, streamDefinitionMap, tableDefinitionMap, windowDefinitionMap, eventTableMap, eventWindowMap, executors, latencyTracker, outputExpectsExpiredEvents, queryName);
-            QuerySelector selector = SelectorParser.parse(query.getSelector(), query.getOutputStream(),
-                    executionPlanContext, streamRuntime.getMetaComplexEvent(), eventTableMap, executors, queryName);
-            boolean isWindow = query.getInputStream() instanceof JoinInputStream;
-            if (!isWindow && query.getInputStream() instanceof SingleInputStream) {
-                for (StreamHandler streamHandler : ((SingleInputStream) query.getInputStream()).getStreamHandlers()) {
-                    if (streamHandler instanceof Window) {
-                        isWindow = true;
-                        break;
-                    }
-                }
-            }
 
-            Element synchronizedElement = AnnotationHelper.getAnnotationElement("synchronized", null, query.getAnnotations());
-            if (synchronizedElement != null) {
-                if (!("false".equalsIgnoreCase(synchronizedElement.getValue()))) {
-                    lockWrapper = new LockWrapper("");  // Query LockWrapper does not need a unique id since it will not be passed to the LockSynchronizer.
-                    lockWrapper.setLock(new ReentrantLock());   // LockWrapper does not have a default lock
-                }
-            } else {
-                if (isWindow || !(streamRuntime instanceof SingleStreamRuntime)) {
-                    if (streamRuntime instanceof JoinStreamRuntime) {
-                        // If at least one EventWindow is involved in the join, use the LockWrapper of that window for the query as well.
-                        // If join is between two EventWindows, sync the locks of the LockWrapper of those windows and use either of them for query.
-                        MetaStateEvent metaStateEvent = (MetaStateEvent) streamRuntime.getMetaComplexEvent();
-                        MetaStreamEvent[] metaStreamEvents = metaStateEvent.getMetaStreamEvents();
-
-                        if (metaStreamEvents[0].isWindowEvent() && metaStreamEvents[1].isWindowEvent()) {
-                            LockWrapper leftLockWrapper = eventWindowMap.get(metaStreamEvents[0].getLastInputDefinition().getId()).getLock();
-                            LockWrapper rightLockWrapper = eventWindowMap.get(metaStreamEvents[1].getLastInputDefinition().getId()).getLock();
-
-                            if (!leftLockWrapper.equals(rightLockWrapper)) {
-                                // Sync the lock across both wrappers
-                                lockSynchronizer.sync(leftLockWrapper, rightLockWrapper);
-                            }
-                            // Can use either leftLockWrapper or rightLockWrapper since both of them will hold the same lock internally
-                            // If either of their lock is updated later, the other lock also will be update by the LockSynchronizer.
-                            lockWrapper = leftLockWrapper;
-                        } else if (metaStreamEvents[0].isWindowEvent()) {
-                            // Share the same wrapper as the query lock wrapper
-                            lockWrapper = eventWindowMap.get(metaStreamEvents[0].getLastInputDefinition().getId()).getLock();
-                        } else if (metaStreamEvents[1].isWindowEvent()) {
-                            // Share the same wrapper as the query lock wrapper
-                            lockWrapper = eventWindowMap.get(metaStreamEvents[1].getLastInputDefinition().getId()).getLock();
-                        } else {
-                            // Join does not contain any EventWindow
-                            lockWrapper = new LockWrapper("");  // Query LockWrapper does not need a unique id since it will not be passed to the LockSynchronizer.
-                            lockWrapper.setLock(new ReentrantLock());   // LockWrapper does not have a default lock
+            Annotation gpuAnnotation = AnnotationHelper.getAnnotation(SiddhiConstants.ANNOTATION_GPU, query.getAnnotations());
+            if(gpuAnnotation == null) {
+                StreamRuntime streamRuntime = InputStreamParser.parse(query.getInputStream(),
+                        executionPlanContext, streamDefinitionMap, tableDefinitionMap, windowDefinitionMap, eventTableMap, eventWindowMap, executors, latencyTracker, outputExpectsExpiredEvents, queryName);
+                QuerySelector selector = SelectorParser.parse(query.getSelector(), query.getOutputStream(),
+                        executionPlanContext, streamRuntime.getMetaComplexEvent(), eventTableMap, executors, queryName);
+                boolean isWindow = query.getInputStream() instanceof JoinInputStream;
+                if (!isWindow && query.getInputStream() instanceof SingleInputStream) {
+                    for (StreamHandler streamHandler : ((SingleInputStream) query.getInputStream()).getStreamHandlers()) {
+                        if (streamHandler instanceof Window) {
+                            isWindow = true;
+                            break;
                         }
-
-                    } else {
-                        lockWrapper = new LockWrapper("");
-                        lockWrapper.setLock(new ReentrantLock());
                     }
                 }
+
+                Element synchronizedElement = AnnotationHelper.getAnnotationElement("synchronized", null, query.getAnnotations());
+                if (synchronizedElement != null) {
+                    if (!("false".equalsIgnoreCase(synchronizedElement.getValue()))) {
+                        lockWrapper = new LockWrapper("");  // Query LockWrapper does not need a unique id since it will not be passed to the LockSynchronizer.
+                        lockWrapper.setLock(new ReentrantLock());   // LockWrapper does not have a default lock
+                    }
+                } else {
+                    if (isWindow || !(streamRuntime instanceof SingleStreamRuntime)) {
+                        if (streamRuntime instanceof JoinStreamRuntime) {
+                            // If at least one EventWindow is involved in the join, use the LockWrapper of that window for the query as well.
+                            // If join is between two EventWindows, sync the locks of the LockWrapper of those windows and use either of them for query.
+                            MetaStateEvent metaStateEvent = (MetaStateEvent) streamRuntime.getMetaComplexEvent();
+                            MetaStreamEvent[] metaStreamEvents = metaStateEvent.getMetaStreamEvents();
+
+                            if (metaStreamEvents[0].isWindowEvent() && metaStreamEvents[1].isWindowEvent()) {
+                                LockWrapper leftLockWrapper = eventWindowMap.get(metaStreamEvents[0].getLastInputDefinition().getId()).getLock();
+                                LockWrapper rightLockWrapper = eventWindowMap.get(metaStreamEvents[1].getLastInputDefinition().getId()).getLock();
+
+                                if (!leftLockWrapper.equals(rightLockWrapper)) {
+                                    // Sync the lock across both wrappers
+                                    lockSynchronizer.sync(leftLockWrapper, rightLockWrapper);
+                                }
+                                // Can use either leftLockWrapper or rightLockWrapper since both of them will hold the same lock internally
+                                // If either of their lock is updated later, the other lock also will be update by the LockSynchronizer.
+                                lockWrapper = leftLockWrapper;
+                            } else if (metaStreamEvents[0].isWindowEvent()) {
+                                // Share the same wrapper as the query lock wrapper
+                                lockWrapper = eventWindowMap.get(metaStreamEvents[0].getLastInputDefinition().getId()).getLock();
+                            } else if (metaStreamEvents[1].isWindowEvent()) {
+                                // Share the same wrapper as the query lock wrapper
+                                lockWrapper = eventWindowMap.get(metaStreamEvents[1].getLastInputDefinition().getId()).getLock();
+                            } else {
+                                // Join does not contain any EventWindow
+                                lockWrapper = new LockWrapper("");  // Query LockWrapper does not need a unique id since it will not be passed to the LockSynchronizer.
+                                lockWrapper.setLock(new ReentrantLock());   // LockWrapper does not have a default lock
+                            }
+
+                        } else {
+                            lockWrapper = new LockWrapper("");
+                            lockWrapper.setLock(new ReentrantLock());
+                        }
+                    }
+                }
+
+                OutputRateLimiter outputRateLimiter = OutputParser.constructOutputRateLimiter(query.getOutputStream().getId(),
+                        query.getOutputRate(), query.getSelector().getGroupByList().size() != 0, isWindow,
+                        executionPlanContext.getScheduledExecutorService(), executionPlanContext, queryName);
+                if (outputRateLimiter instanceof WrappedSnapshotOutputRateLimiter) {
+                    selector.setBatchingEnabled(false);
+                }
+                executionPlanContext.addEternalReferencedHolder(outputRateLimiter);
+
+                OutputCallback outputCallback = OutputParser.constructOutputCallback(query.getOutputStream(),
+                        streamRuntime.getMetaComplexEvent().getOutputStreamDefinition(), eventTableMap, eventWindowMap, executionPlanContext, !(streamRuntime instanceof SingleStreamRuntime), queryName);
+
+                QueryParserHelper.reduceMetaComplexEvent(streamRuntime.getMetaComplexEvent());
+                QueryParserHelper.updateVariablePosition(streamRuntime.getMetaComplexEvent(), executors);
+                QueryParserHelper.initStreamRuntime(streamRuntime, streamRuntime.getMetaComplexEvent(), lockWrapper, queryName);
+                selector.setEventPopulator(StateEventPopulatorFactory.constructEventPopulator(streamRuntime.getMetaComplexEvent()));
+                queryRuntime = new QueryRuntime(query, executionPlanContext, streamRuntime, selector, outputRateLimiter,
+                        outputCallback, streamRuntime.getMetaComplexEvent(), lockWrapper != null);
+
+                if (outputRateLimiter instanceof WrappedSnapshotOutputRateLimiter) {
+                    selector.setBatchingEnabled(false);
+                    ((WrappedSnapshotOutputRateLimiter) outputRateLimiter)
+                            .init(streamRuntime.getMetaComplexEvent().getOutputStreamDefinition().getAttributeList().size(),
+                                    selector.getAttributeProcessorList(), streamRuntime.getMetaComplexEvent());
+                }
+                outputRateLimiter.init(executionPlanContext, lockWrapper, queryName);
+            } else {
+                GpuQueryContext gpuQueryContext = new GpuQueryContext(query.getAnnotations());
+                gpuQueryContext.setQueryName(executionPlanContext.getName() + "_" + gpuQueryContext.getQueryName());
+
+                gpuQueryContext.setInputEventBufferSize(executionPlanContext.getSiddhiContext().getEventBufferSize());
+
+                StreamRuntime streamRuntime = GpuInputStreamParser.parse(query.getInputStream(),
+                        executionPlanContext, streamDefinitionMap, tableDefinitionMap, windowDefinitionMap, eventTableMap,
+                        eventWindowMap, executors, gpuQueryContext, latencyTracker, outputExpectsExpiredEvents, queryName);
+
+                GpuQuerySelector selector = GpuSelectorParser.parse(query.getSelector(), query.getOutputStream(),
+                        executionPlanContext, streamRuntime.getMetaComplexEvent(), eventTableMap, executors, streamRuntime, gpuQueryContext);
+
+                boolean isWindow = query.getInputStream() instanceof JoinInputStream;
+                if (!isWindow && query.getInputStream() instanceof SingleInputStream) {
+                    for (StreamHandler streamHandler : ((SingleInputStream) query.getInputStream()).getStreamHandlers()) {
+                        if (streamHandler instanceof Window) {
+                            isWindow = true;
+                            break;
+                        }
+                    }
+                }
+                OutputRateLimiter outputRateLimiter = OutputParser.constructOutputRateLimiter(query.getOutputStream().getId(),
+                        query.getOutputRate(), query.getSelector().getGroupByList().size() != 0, isWindow,
+                        executionPlanContext.getScheduledExecutorService(), executionPlanContext, queryName);
+
+                OutputCallback outputCallback = OutputParser.constructOutputCallback(query.getOutputStream(),
+                        streamRuntime.getMetaComplexEvent().getOutputStreamDefinition(), eventTableMap, eventWindowMap, executionPlanContext, !(streamRuntime instanceof SingleStreamRuntime), queryName);
+
+                QueryParserHelper.reduceMetaComplexEvent(streamRuntime.getMetaComplexEvent());
+                QueryParserHelper.updateVariablePosition(streamRuntime.getMetaComplexEvent(), executors);
+                QueryParserHelper.initStreamRuntime(streamRuntime, streamRuntime.getMetaComplexEvent(), lockWrapper, queryName);
+
+                // if join processor make this skip event populator - state events are mapped to stream event at GPU
+                if(streamRuntime instanceof JoinStreamRuntime) {
+                    selector.setEventPopulator(new SkipStateEventPopulator());
+                } else {
+                    selector.setEventPopulator(StateEventPopulatorFactory.constructEventPopulator(streamRuntime.getMetaComplexEvent()));
+                }
+                queryRuntime = new QueryRuntime(query, executionPlanContext, streamRuntime, selector, outputRateLimiter,
+                        outputCallback, streamRuntime.getMetaComplexEvent(), lockWrapper != null);
+                queryRuntime.configureRuntime(); // configure processors with updated MetaData
             }
-
-            OutputRateLimiter outputRateLimiter = OutputParser.constructOutputRateLimiter(query.getOutputStream().getId(),
-                    query.getOutputRate(), query.getSelector().getGroupByList().size() != 0, isWindow,
-                    executionPlanContext.getScheduledExecutorService(), executionPlanContext, queryName);
-            if (outputRateLimiter instanceof WrappedSnapshotOutputRateLimiter) {
-                selector.setBatchingEnabled(false);
-            }
-            executionPlanContext.addEternalReferencedHolder(outputRateLimiter);
-
-            OutputCallback outputCallback = OutputParser.constructOutputCallback(query.getOutputStream(),
-                    streamRuntime.getMetaComplexEvent().getOutputStreamDefinition(), eventTableMap, eventWindowMap, executionPlanContext, !(streamRuntime instanceof SingleStreamRuntime), queryName);
-
-            QueryParserHelper.reduceMetaComplexEvent(streamRuntime.getMetaComplexEvent());
-            QueryParserHelper.updateVariablePosition(streamRuntime.getMetaComplexEvent(), executors);
-            QueryParserHelper.initStreamRuntime(streamRuntime, streamRuntime.getMetaComplexEvent(), lockWrapper, queryName);
-            selector.setEventPopulator(StateEventPopulatorFactory.constructEventPopulator(streamRuntime.getMetaComplexEvent()));
-            queryRuntime = new QueryRuntime(query, executionPlanContext, streamRuntime, selector, outputRateLimiter,
-                    outputCallback, streamRuntime.getMetaComplexEvent(), lockWrapper != null);
-
-            if (outputRateLimiter instanceof WrappedSnapshotOutputRateLimiter) {
-                selector.setBatchingEnabled(false);
-                ((WrappedSnapshotOutputRateLimiter) outputRateLimiter)
-                        .init(streamRuntime.getMetaComplexEvent().getOutputStreamDefinition().getAttributeList().size(),
-                                selector.getAttributeProcessorList(), streamRuntime.getMetaComplexEvent());
-            }
-            outputRateLimiter.init(executionPlanContext, lockWrapper, queryName);
 
         } catch (DuplicateDefinitionException e) {
             if (nameElement != null) {

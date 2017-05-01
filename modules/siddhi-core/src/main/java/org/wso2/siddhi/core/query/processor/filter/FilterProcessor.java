@@ -19,6 +19,7 @@ package org.wso2.siddhi.core.query.processor.filter;
 
 import org.wso2.siddhi.core.event.ComplexEvent;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.exception.OperationNotSupportedException;
 import org.wso2.siddhi.core.executor.ExpressionExecutor;
 import org.wso2.siddhi.core.query.processor.Processor;
@@ -41,6 +42,11 @@ public class FilterProcessor implements Processor {
 
     public FilterProcessor cloneProcessor(String key) {
         return new FilterProcessor(conditionExecutor.cloneExecutor(key));
+    }
+
+    @Override
+    public void configureProcessor(MetaComplexEvent metaEvent) {
+
     }
 
     @Override

@@ -75,6 +75,11 @@ public class StateStreamRuntime implements StreamRuntime {
         return metaStateEvent;
     }
 
+    @Override
+    public void configureRuntime(MetaComplexEvent metaComplexEvent) {
+
+    }
+
     public void setInnerStateRuntime(InnerStateRuntime innerStateRuntime) {
         this.innerStateRuntime = innerStateRuntime;
     }

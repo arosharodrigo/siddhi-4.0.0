@@ -17,6 +17,7 @@
  */
 package org.wso2.siddhi.core.query.input;
 
+import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.event.ComplexEvent;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
 import org.wso2.siddhi.core.event.Event;
@@ -32,6 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MultiProcessStreamReceiver extends ProcessStreamReceiver {
+
+    private static final Logger log = Logger.getLogger(MultiProcessStreamReceiver.class);
 
     protected Processor[] nextProcessors;
     private MetaStreamEvent[] metaStreamEvents;
@@ -85,6 +88,8 @@ public class MultiProcessStreamReceiver extends ProcessStreamReceiver {
 
     @Override
     public void receive(ComplexEvent complexEvent) {
+//        log.info("Calling void receive(ComplexEvent complexEvents): " + complexEvent);
+        long startTime = System.nanoTime();
         ComplexEvent aComplexEvent = complexEvent;
         while (aComplexEvent != null) {
             synchronized (this) {
@@ -100,10 +105,14 @@ public class MultiProcessStreamReceiver extends ProcessStreamReceiver {
             }
             aComplexEvent = aComplexEvent.getNext();
         }
+        long endTime = System.nanoTime();
+        markStat(startTime, endTime, 1);
     }
 
     @Override
     public void receive(Event event) {
+//        log.info("Calling void receive(Event event): " + event);
+        long startTime = System.nanoTime();
         synchronized (this) {
             stabilizeStates();
             for (int anEventSequence : eventSequence) {
@@ -114,10 +123,14 @@ public class MultiProcessStreamReceiver extends ProcessStreamReceiver {
                 process(anEventSequence, borrowedEvent);
             }
         }
+        long endTime = System.nanoTime();
+        markStat(startTime, endTime, 1);
     }
 
     @Override
     public void receive(Event[] events) {
+//        log.info("Calling void receive(Event[] events): " + events);
+        long startTime = System.nanoTime();
         for (Event event : events) {
             synchronized (this) {
                 stabilizeStates();
@@ -130,12 +143,17 @@ public class MultiProcessStreamReceiver extends ProcessStreamReceiver {
                 }
             }
         }
+        long endTime = System.nanoTime();
+        markStat(startTime, endTime, events.length);
     }
 
     @Override
     public void receive(Event event, boolean endOfBatch) {
+//        log.info("Calling void receive(Event event, boolean endOfBatch): " + event + ", " + endOfBatch);
+        long tempCurrentEventCount = getCurrentEventCount().incrementAndGet();
         eventBuffer.add(event);
         if (endOfBatch) {
+            long startTime = System.nanoTime();
             for (Event aEvent : eventBuffer) {
                 synchronized (this) {
                     stabilizeStates();
@@ -149,11 +167,18 @@ public class MultiProcessStreamReceiver extends ProcessStreamReceiver {
                 }
             }
             eventBuffer.clear();
+            long endTime = System.nanoTime();
+            double avgThroughput = tempCurrentEventCount * 1000000000 / (endTime - startTime);
+            log.info("<" + queryName + "> " + tempCurrentEventCount + " Batch Throughput : " + DECIMAL_FORMAT.format(avgThroughput) + " eps");
+            getThroughputStatistics().addValue(avgThroughput);
+            getCurrentEventCount().set(0);
         }
     }
 
     @Override
     public void receive(long timeStamp, Object[] data) {
+//        log.info("Calling void receive(long timeStamp, Object[] data): " + timeStamp + ", " + data);
+        long startTime = System.nanoTime();
         synchronized (this) {
             stabilizeStates();
             for (int anEventSequence : eventSequence) {
@@ -164,6 +189,8 @@ public class MultiProcessStreamReceiver extends ProcessStreamReceiver {
                 process(anEventSequence, borrowedEvent);
             }
         }
+        long endTime = System.nanoTime();
+        markStat(startTime, endTime, 1);
     }
 
     protected void processAndClear(int processIndex, StreamEvent streamEvent) {

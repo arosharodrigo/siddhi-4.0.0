@@ -20,6 +20,7 @@ package org.wso2.siddhi.core.query.input.stream.join;
 
 import org.wso2.siddhi.core.event.ComplexEvent;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.event.state.StateEvent;
 import org.wso2.siddhi.core.event.state.StateEventPool;
 import org.wso2.siddhi.core.event.stream.StreamEvent;
@@ -178,6 +179,11 @@ public class JoinProcessor implements Processor {
             joinProcessor.setFinder(finder.cloneFinder(key));
         }
         return joinProcessor;
+    }
+
+    @Override
+    public void configureProcessor(MetaComplexEvent metaEvent) {
+
     }
 
     public void setFindableProcessor(FindableProcessor findableProcessor) {

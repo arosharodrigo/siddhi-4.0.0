@@ -17,6 +17,7 @@
  */
 package org.wso2.siddhi.core.query.input;
 
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.math3.stat.descriptive.SynchronizedSummaryStatistics;
 import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.debugger.SiddhiDebugger;
@@ -45,24 +46,24 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
 
     protected String streamId;
     protected Processor next;
-    private StreamEventConverter streamEventConverter;
-    private MetaStreamEvent metaStreamEvent;
-    private StreamEventPool streamEventPool;
+    protected StreamEventConverter streamEventConverter;
+    protected MetaStreamEvent metaStreamEvent;
+    protected StreamEventPool streamEventPool;
     protected List<PreStateProcessor> stateProcessors = new ArrayList<PreStateProcessor>();
     protected int stateProcessorsSize;
     protected LatencyTracker latencyTracker;
     protected LockWrapper lockWrapper;
     protected ComplexEventChunk<StreamEvent> batchingStreamEventChunk = new ComplexEventChunk<StreamEvent>(false);
     protected boolean batchProcessingAllowed;
-    private SiddhiDebugger siddhiDebugger;
-    private String queryName;
+    protected SiddhiDebugger siddhiDebugger;
+    protected String queryName;
 
     private AtomicLong currentEventCount = new AtomicLong(0);
     private AtomicLong totalDuration = new AtomicLong(0);
     private final SynchronizedSummaryStatistics throughputStatistics = new SynchronizedSummaryStatistics();
     protected int performanceCalculateBatchCount;
 
-    private final DecimalFormat decimalFormat = new DecimalFormat("###.##");
+    public static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("###.##");
 
     public ProcessStreamReceiver(String streamId, LatencyTracker latencyTracker, String queryName) {
         this.streamId = streamId;
@@ -110,6 +111,7 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
 
     @Override
     public void receive(ComplexEvent complexEvents) {
+//        log.info("Calling void receive(ComplexEvent complexEvents): " + complexEvents);
         long startTime = System.nanoTime();
         if (siddhiDebugger != null) {
             siddhiDebugger.checkBreakPoint(queryName, SiddhiDebugger.QueryTerminal.IN, complexEvents);
@@ -132,6 +134,7 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
 
     @Override
     public void receive(Event event) {
+//        log.info("Calling void receive(Event event): " + event);
         if (event != null) {
             long startTime = System.nanoTime();
             StreamEvent borrowedEvent = streamEventPool.borrowEvent();
@@ -147,6 +150,7 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
 
     @Override
     public void receive(Event[] events) {
+//        log.info("Calling void receive(Event[] events): " + events);
         StreamEvent firstEvent = streamEventPool.borrowEvent();
         streamEventConverter.convertEvent(events[0], firstEvent);
         StreamEvent currentEvent = firstEvent;
@@ -168,6 +172,7 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
 
     @Override
     public void receive(Event event, boolean endOfBatch) {
+//        log.info("Calling void receive(Event event, boolean endOfBatch): " + event + ", " + endOfBatch);
         StreamEvent borrowedEvent = streamEventPool.borrowEvent();
         streamEventConverter.convertEvent(event, borrowedEvent);
         ComplexEventChunk<StreamEvent> streamEventChunk = null;
@@ -187,7 +192,7 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
             process(streamEventChunk);
             long endTime = System.nanoTime();
             double avgThroughput = tempCurrentEventCount * 1000000000 / (endTime - startTime);
-            log.info("<" + queryName + "> " + tempCurrentEventCount + " Batch Throughput : " + decimalFormat.format(avgThroughput) + " eps");
+            log.info("<" + queryName + "> " + tempCurrentEventCount + " Batch Throughput : " + DECIMAL_FORMAT.format(avgThroughput) + " eps");
             throughputStatistics.addValue(avgThroughput);
             currentEventCount.set(0);
         }
@@ -195,6 +200,7 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
 
     @Override
     public void receive(long timeStamp, Object[] data) {
+//        log.info("Calling void receive(long timeStamp, Object[] data): " + timeStamp + ", " + data);
         long startTime = System.nanoTime();
         StreamEvent borrowedEvent = streamEventPool.borrowEvent();
         streamEventConverter.convertData(timeStamp, data, borrowedEvent);
@@ -245,13 +251,13 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
         stateProcessorsSize = stateProcessors.size();
     }
 
-    private void markStat(long startTime, long endTime, long delta) {
+    protected void markStat(long startTime, long endTime, long delta) {
         totalDuration.addAndGet(endTime - startTime);
         long tempCurrentEventCount = currentEventCount.addAndGet(delta);
 
         if(tempCurrentEventCount >= performanceCalculateBatchCount) {
             double avgThroughput = tempCurrentEventCount * 1000000000 / totalDuration.get();
-            log.info("<" + queryName + "> " + tempCurrentEventCount + " Events Throughput : " + decimalFormat.format(avgThroughput) + " eps");
+            log.info("<" + queryName + "> " + tempCurrentEventCount + " Events Throughput : " + DECIMAL_FORMAT.format(avgThroughput) + " eps");
             throughputStatistics.addValue(avgThroughput);
             totalDuration.set(0);
             currentEventCount.set(0);
@@ -262,11 +268,11 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
         log.info(new StringBuilder()
                 .append("EventProcessTroughput ExecutionPlan=").append(queryName).append("_").append(streamId)
                 .append("|length=").append(throughputStatistics.getN())
-                .append("|Avg=").append(decimalFormat.format(throughputStatistics.getMean()))
-                .append("|Min=").append(decimalFormat.format(throughputStatistics.getMin()))
-                .append("|Max=").append(decimalFormat.format(throughputStatistics.getMax()))
-                .append("|Var=").append(decimalFormat.format(throughputStatistics.getVariance()))
-                .append("|StdDev=").append(decimalFormat.format(throughputStatistics.getStandardDeviation())).toString());
+                .append("|Avg=").append(DECIMAL_FORMAT.format(throughputStatistics.getMean()))
+                .append("|Min=").append(DECIMAL_FORMAT.format(throughputStatistics.getMin()))
+                .append("|Max=").append(DECIMAL_FORMAT.format(throughputStatistics.getMax()))
+                .append("|Var=").append(DECIMAL_FORMAT.format(throughputStatistics.getVariance()))
+                .append("|StdDev=").append(DECIMAL_FORMAT.format(throughputStatistics.getStandardDeviation())).toString());
     }
 
     public void getStatistics(List<SynchronizedSummaryStatistics> statList) {
@@ -280,4 +286,13 @@ public class ProcessStreamReceiver implements StreamJunction.Receiver {
     public void setPerformanceCalculateBatchCount(int performanceCalculateBatchCount) {
         this.performanceCalculateBatchCount = performanceCalculateBatchCount;
     }
+
+    public AtomicLong getCurrentEventCount() {
+        return currentEventCount;
+    }
+
+    public SynchronizedSummaryStatistics getThroughputStatistics() {
+        return throughputStatistics;
+    }
+
 }

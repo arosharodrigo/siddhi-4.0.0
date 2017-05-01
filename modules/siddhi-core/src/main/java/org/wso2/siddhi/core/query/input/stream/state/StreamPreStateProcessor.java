@@ -19,6 +19,7 @@ package org.wso2.siddhi.core.query.input.stream.state;
 
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.event.ComplexEventChunk;
+import org.wso2.siddhi.core.event.MetaComplexEvent;
 import org.wso2.siddhi.core.event.state.StateEvent;
 import org.wso2.siddhi.core.event.state.StateEventCloner;
 import org.wso2.siddhi.core.event.state.StateEventPool;
@@ -180,6 +181,11 @@ public class StreamPreStateProcessor implements PreStateProcessor, Snapshotable 
         cloneProperties(streamPreStateProcessor, key);
         streamPreStateProcessor.init(executionPlanContext, queryName);
         return streamPreStateProcessor;
+    }
+
+    @Override
+    public void configureProcessor(MetaComplexEvent metaEvent) {
+
     }
 
     protected void cloneProperties(StreamPreStateProcessor streamPreStateProcessor, String key) {
