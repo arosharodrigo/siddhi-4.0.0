@@ -34,6 +34,7 @@
     <description>Siddhi, high performing Complex Event Processing Engine</description>
 
     <modules>
+        <module>modules/siddhi-gpu</module>
         <module>modules/siddhi-query-api</module>
         <module>modules/siddhi-query-compiler</module>
         <module>modules/siddhi-core</module>
