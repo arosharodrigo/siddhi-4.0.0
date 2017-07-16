@@ -33,8 +33,8 @@ import org.wso2.siddhi.core.stream.input.InputHandler;
 import org.wso2.siddhi.core.util.EventPrinter;
 import org.wso2.siddhi.extension.he.test.util.SiddhiTestHelper;
 
-public class CompareGreaterThanEqualFunctionExtensionTestCase {
-    static final Logger log = Logger.getLogger(CompareGreaterThanEqualFunctionExtensionTestCase.class);
+public class CompareGreaterThanFunctionExtensionTestCase {
+    static final Logger log = Logger.getLogger(CompareGreaterThanFunctionExtensionTestCase.class);
     private AtomicInteger count = new AtomicInteger(0);
     private volatile boolean eventArrived;
 
@@ -46,13 +46,13 @@ public class CompareGreaterThanEqualFunctionExtensionTestCase {
 
     @Test
     public void testContainsFunctionExtension() throws InterruptedException {
-        log.info("CompareGreaterThanEqualFunctionExtensionTestCase TestCase");
+        log.info("CompareGreaterThanFunctionExtensionTestCase TestCase");
         SiddhiManager siddhiManager = new SiddhiManager();
 
         String inStreamDefinition = "define stream inputStream (symbol string, price long, "
-                + "volume long);";
+                + "volume int);";
         String query = ("@info(name = 'query1') " + "from inputStream "
-                + "select symbol , he:compareGreaterThanEqual(symbol, 'WSO2') as compareGreaterThanEqual "
+                + "select symbol, he:compareGreaterThan(volume, 150) as compareGreaterThan "
                 + "insert into outputStream;");
         ExecutionPlanRuntime executionPlanRuntime = siddhiManager
                 .createExecutionPlanRuntime(inStreamDefinition + query);
@@ -82,10 +82,10 @@ public class CompareGreaterThanEqualFunctionExtensionTestCase {
 
         InputHandler inputHandler = executionPlanRuntime.getInputHandler("inputStream");
         executionPlanRuntime.start();
-        inputHandler.send(new Object[] { "IBM", 700f, 100l });
-        inputHandler.send(new Object[] { "WSO2", 60.5f, 200l });
-        inputHandler.send(new Object[] { "wso2", 60.5f, 200l });
-        inputHandler.send(new Object[] { "", 60.5f, 200l });
+        inputHandler.send(new Object[] { "IBM", 700f, 100 });
+        inputHandler.send(new Object[] { "WSO2", 60.5f, 200 });
+        inputHandler.send(new Object[] { "wso2", 60.5f, 200 });
+        inputHandler.send(new Object[] { "", 60.5f, 150 });
         SiddhiTestHelper.waitForEvents(100, 4, count, 60000);
         Assert.assertEquals(4, count.get());
         Assert.assertTrue(eventArrived);
