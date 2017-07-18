@@ -6,6 +6,7 @@ public class HomomorphicEncryptionEvaluation {
         System.loadLibrary("heShared");
     }
 
+    public native boolean compareEqualIntInt(int val1, int val2);
     public native boolean compareGreaterThanIntInt(int val1, int val2);
 
 }
