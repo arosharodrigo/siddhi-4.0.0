@@ -33,6 +33,7 @@ import org.wso2.siddhi.query.api.exception.ExecutionPlanValidationException;
  */
 public class CompareGreaterThanFunctionExtension extends FunctionExecutor {
     Attribute.Type returnType = Attribute.Type.BOOL;
+    private HomomorphicEncryptionEvaluation heEval;
 
     @Override
     public Attribute.Type getReturnType() {
@@ -79,6 +80,8 @@ public class CompareGreaterThanFunctionExtension extends FunctionExecutor {
                             + attributeExpressionExecutors[1].getReturnType().toString());
         }
 
+        heEval = new HomomorphicEncryptionEvaluation();
+        heEval.init();
     }
 
     @Override
@@ -90,8 +93,7 @@ public class CompareGreaterThanFunctionExtension extends FunctionExecutor {
         int volume = (Integer) data[0];
         int compareTo = (Integer) data[1];
 
-        HomomorphicEncryptionEvaluation heEval = new HomomorphicEncryptionEvaluation();
-        return heEval.compareGreaterThanIntInt(volume, compareTo);
+        return heEval.compareGreaterThanIntInt(String.valueOf(volume), String.valueOf(compareTo));
     }
 
     @Override
