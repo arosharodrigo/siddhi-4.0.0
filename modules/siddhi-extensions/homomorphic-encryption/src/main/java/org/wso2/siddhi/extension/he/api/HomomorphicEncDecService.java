@@ -9,7 +9,7 @@ public class HomomorphicEncDecService {
     public native void init();
     public native void destroy();
 
-    public native String encrypt(String binaryForm32);
+    public native byte[] encrypt(String binaryForm32);
     public native String decrypt(String encryptedVal);
 
 }
