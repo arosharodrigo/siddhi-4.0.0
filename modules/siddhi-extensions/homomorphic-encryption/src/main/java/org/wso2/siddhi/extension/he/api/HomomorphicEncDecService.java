@@ -3,13 +3,14 @@ package org.wso2.siddhi.extension.he.api;
 public class HomomorphicEncDecService {
 
     static {
-        System.loadLibrary("heShared");
+        System.loadLibrary("he");
     }
 
-    public native void init();
+    public native void init(String keyFileLocation);
     public native void destroy();
 
-    public native byte[] encrypt(String binaryForm32);
-    public native String decrypt(String encryptedVal);
+    public native void generateKeys(long p, long r, long L, long c, long w, long d, long k, long s);
+    public native String encryptLong(long val);
+    public native long decryptLong(String encryptedVal);
 
 }

@@ -16,5 +16,4 @@
 # under the License.
 #
 
-compareEqual=org.wso2.siddhi.extension.he.CompareEqualFunctionExtension
-compareGreaterThan=org.wso2.siddhi.extension.he.CompareGreaterThanFunctionExtension
+add=org.wso2.siddhi.extension.he.HeAddFunctionExtension
