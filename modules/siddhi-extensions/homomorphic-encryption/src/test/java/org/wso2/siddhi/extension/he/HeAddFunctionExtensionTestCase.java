@@ -30,8 +30,8 @@ public class HeAddFunctionExtensionTestCase {
         count.set(0);
         eventArrived = false;
         homomorphicEncDecService = new HomomorphicEncDecService();
+        homomorphicEncDecService.generateKeys("/home/arosha/helib-keys", 1201, 1, 2, 15, 64, 1, 80, 0);
         homomorphicEncDecService.init("/home/arosha/helib-keys");
-//        homomorphicEncDecService.generateKeys(1201, 1, 2, 15, 64, 1, 80, 0);
     }
 
     @Test
@@ -118,5 +118,11 @@ public class HeAddFunctionExtensionTestCase {
         SiddhiTestHelper.waitForEvents(100, 4, count, 30000);
         Assert.assertEquals(4, count.get());
         executionPlanRuntime.shutdown();
+    }
+
+    @Test
+    public void testGenerateKeys() throws Exception {
+        System.out.println();
+
     }
 }
