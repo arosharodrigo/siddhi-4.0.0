@@ -60,9 +60,13 @@ public class HeAddFunctionExtension extends FunctionExecutor {
         }
 
         heEval = new HomomorphicEncryptionEvaluation();
-        heEval.init("/home/arosha/helib-keys");
         homomorphicEncDecService = new HomomorphicEncDecService();
+        heEval.init("/home/arosha/helib-keys");
         homomorphicEncDecService.init("/home/arosha/helib-keys");
+//        heEval.init("/home/aroshar/helib-keys");
+//        homomorphicEncDecService.init("/home/aroshar/helib-keys");
+//        heEval.init("/home/ubuntu/helib-keys");
+//        homomorphicEncDecService.init("/home/ubuntu/helib-keys");
     }
 
     @Override
