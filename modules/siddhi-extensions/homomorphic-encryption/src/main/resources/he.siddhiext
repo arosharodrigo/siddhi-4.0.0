@@ -17,3 +17,4 @@
 #
 
 add=org.wso2.siddhi.extension.he.HeAddFunctionExtension
+equal=org.wso2.siddhi.extension.he.HeEqualFunctionExtension

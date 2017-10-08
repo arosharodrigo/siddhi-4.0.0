@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HeAddFunctionExtensionTestCase {
 
-    static final Logger log = Logger.getLogger(HeAddFunctionExtensionTestCase.class);
+    private static final Logger log = Logger.getLogger(HeAddFunctionExtensionTestCase.class);
     private AtomicInteger count = new AtomicInteger(0);
     private volatile boolean eventArrived;
     private HomomorphicEncDecService homomorphicEncDecService;
@@ -35,7 +35,7 @@ public class HeAddFunctionExtensionTestCase {
     }
 
     @Test
-    public void testCompareEqualFunctionExtension() throws InterruptedException {
+    public void testAddFunctionExtension() throws InterruptedException {
         log.info("HeAddFunctionExtensionTestCase TestCase");
         SiddhiManager siddhiManager = new SiddhiManager();
 

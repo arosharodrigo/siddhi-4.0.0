@@ -10,5 +10,6 @@ public class HomomorphicEncryptionEvaluation {
     public native void destroy();
 
     public native String evaluateAdd(String val1, String val2);
+    public native String evaluateSubtract(String val1, String val2);
 
 }

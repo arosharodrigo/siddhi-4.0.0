@@ -9,11 +9,13 @@ import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.exception.ExecutionPlanValidationException;
 import util.Properties;
 
-public class HeAddFunctionExtension extends FunctionExecutor {
+public class HeEqualFunctionExtension extends FunctionExecutor {
 
-    Attribute.Type returnType = Attribute.Type.STRING;
+    Attribute.Type returnType = Attribute.Type.BOOL;
     private HomomorphicEncryptionEvaluation heEval;
     private HomomorphicEncDecService homomorphicEncDecService;
+    private final int batchSize = 478;
+//    private final int batchSize = 39;
 
     @Override
     public Attribute.Type getReturnType() {
@@ -53,10 +55,10 @@ public class HeAddFunctionExtension extends FunctionExecutor {
                             + "required " + Attribute.Type.STRING + ", but found "
                             + attributeExpressionExecutors[0].getReturnType().toString());
         }
-        if (attributeExpressionExecutors[1].getReturnType() != Attribute.Type.LONG) {
+        if (attributeExpressionExecutors[1].getReturnType() != Attribute.Type.STRING) {
             throw new ExecutionPlanValidationException(
                     "Invalid parameter type found for the second argument of he:compareEqualIntInt()) function, "
-                            + "required " + Attribute.Type.LONG + ", but found "
+                            + "required " + Attribute.Type.STRING + ", but found "
                             + attributeExpressionExecutors[1].getReturnType().toString());
         }
 
@@ -70,14 +72,31 @@ public class HeAddFunctionExtension extends FunctionExecutor {
     @Override
     protected Object execute(Object[] data) {
         String param1 = (String)data[0];
-        String param2 = homomorphicEncDecService.encryptLong((Long)data[1]);
-        String result = heEval.evaluateAdd(param1, param2);
-        return result;
+        String param2 = (String)data[1];
+
+        StringBuilder valueBuilder = new StringBuilder();
+        byte[] param2Bytes = param2.getBytes();
+        for(byte value : param2Bytes) {
+            valueBuilder.append(value);
+            valueBuilder.append(",");
+        }
+        int dummyCount = batchSize - param2Bytes.length;
+        for(int i = 0;i < dummyCount; i++) {
+            valueBuilder.append(0);
+            valueBuilder.append(",");
+        }
+        String valueList = valueBuilder.toString().replaceAll(",$", "");
+
+        String encryptedParam2 = homomorphicEncDecService.encryptLongVector(valueList);
+        String result = heEval.evaluateSubtract(param1, encryptedParam2);
+        String decryptLongVector = homomorphicEncDecService.decryptLongVector(result);
+        String modifiedDecryptLongVector = decryptLongVector.replace("0,", "");
+        return modifiedDecryptLongVector.isEmpty();
     }
 
     @Override
     protected Object execute(Object data) {
         return null;
     }
-    
+
 }
