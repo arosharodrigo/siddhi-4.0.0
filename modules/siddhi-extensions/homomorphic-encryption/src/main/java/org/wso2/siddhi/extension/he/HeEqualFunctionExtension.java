@@ -10,17 +10,21 @@ import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.exception.ExecutionPlanValidationException;
 import util.Properties;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 public class HeEqualFunctionExtension extends FunctionExecutor {
 
     static final Logger log = Logger.getLogger(HeEqualFunctionExtension.class);
 
-    Attribute.Type returnType = Attribute.Type.BOOL;
+    Attribute.Type returnType = Attribute.Type.STRING;
     private HomomorphicEncryptionEvaluation heEval;
     private HomomorphicEncDecService homomorphicEncDecService;
-    private final int batchSize = 478;
-//    private final int batchSize = 39;
 
-    private String encryptedOperand = null;
+    private static final int batchSize = 478;
+    private static final int maxEmailLength = 40;
+    private static final int compositeEventSize = 10;
+
+    private AtomicReference<String> encryptedOperand = new AtomicReference<String>("");
 
     @Override
     public Attribute.Type getReturnType() {
@@ -78,36 +82,48 @@ public class HeEqualFunctionExtension extends FunctionExecutor {
     protected Object execute(Object[] data) {
         String param1 = (String)data[0];
 
-        if(encryptedOperand == null) {
-
+        if(encryptedOperand.get().equals("")) {
+            String param2 = (String)data[1];
+            String binaryForm = convertToBinaryForm(param2, maxEmailLength);
+            StringBuilder valueBuilder = new StringBuilder();
+            for(int i = 0; i < compositeEventSize; i++) {
+                valueBuilder.append(binaryForm).append(",");
+            }
+            int remainingSlots = batchSize - (compositeEventSize * maxEmailLength);
+            for(int i = 0; i < remainingSlots; i++) {
+                valueBuilder.append(0);
+                valueBuilder.append(",");
+            }
+            String valueList = valueBuilder.toString().replaceAll(",$", "");
+            encryptedOperand = new AtomicReference<String>(homomorphicEncDecService.encryptLongVector(valueList));
         }
-//        String param2 = (String)data[1];
-
-        StringBuilder valueBuilder = new StringBuilder();
-//        byte[] param2Bytes = param2.getBytes();
-        for(byte value : param2Bytes) {
-            valueBuilder.append(value);
-            valueBuilder.append(",");
-        }
-//        int dummyCount = batchSize - param2Bytes.length;
-        for(int i = 0;i < dummyCount; i++) {
-            valueBuilder.append(0);
-            valueBuilder.append(",");
-        }
-        String valueList = valueBuilder.toString().replaceAll(",$", "");
-
-        String encryptedParam2 = homomorphicEncDecService.encryptLongVector(valueList);
-        
-        String result = heEval.evaluateSubtract(param1, encryptedParam2);
-        String decryptLongVector = homomorphicEncDecService.decryptLongVector(result);
-        String modifiedDecryptLongVector = decryptLongVector.replace("0,", "");
-        return modifiedDecryptLongVector.isEmpty();
-//        return false;
+        String result = heEval.evaluateSubtract(param1, encryptedOperand.get());
+//        String decryptLongVector = homomorphicEncDecService.decryptLongVector(result);
+//        String modifiedDecryptLongVector = decryptLongVector.replace("0,", "");
+//        return modifiedDecryptLongVector.isEmpty();
+        return result;
     }
 
     @Override
     protected Object execute(Object data) {
         return null;
+    }
+
+    private static String convertToBinaryForm(String param, int batchSize) {
+        StringBuilder valueBuilder = new StringBuilder();
+        byte[] paramBytes = param.getBytes();
+        int minimumSize = (paramBytes.length < batchSize) ? paramBytes.length : batchSize;
+        for(int i = 0; i < minimumSize; i++) {
+            valueBuilder.append(paramBytes[i]);
+            valueBuilder.append(",");
+        }
+        int dummyCount = batchSize - minimumSize;
+        for(int j = 0;j < dummyCount; j++) {
+            valueBuilder.append(0);
+            valueBuilder.append(",");
+        }
+        String valueList = valueBuilder.toString().replaceAll(",$", "");
+        return valueList;
     }
 
 }
