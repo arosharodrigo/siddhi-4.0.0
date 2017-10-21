@@ -1,5 +1,6 @@
 package org.wso2.siddhi.extension.he;
 
+import org.apache.log4j.Logger;
 import org.wso2.siddhi.core.config.ExecutionPlanContext;
 import org.wso2.siddhi.core.executor.ExpressionExecutor;
 import org.wso2.siddhi.core.executor.function.FunctionExecutor;
@@ -11,11 +12,15 @@ import util.Properties;
 
 public class HeEqualFunctionExtension extends FunctionExecutor {
 
+    static final Logger log = Logger.getLogger(HeEqualFunctionExtension.class);
+
     Attribute.Type returnType = Attribute.Type.BOOL;
     private HomomorphicEncryptionEvaluation heEval;
     private HomomorphicEncDecService homomorphicEncDecService;
     private final int batchSize = 478;
 //    private final int batchSize = 39;
+
+    private String encryptedOperand = null;
 
     @Override
     public Attribute.Type getReturnType() {
@@ -72,15 +77,19 @@ public class HeEqualFunctionExtension extends FunctionExecutor {
     @Override
     protected Object execute(Object[] data) {
         String param1 = (String)data[0];
-        String param2 = (String)data[1];
+
+        if(encryptedOperand == null) {
+
+        }
+//        String param2 = (String)data[1];
 
         StringBuilder valueBuilder = new StringBuilder();
-        byte[] param2Bytes = param2.getBytes();
+//        byte[] param2Bytes = param2.getBytes();
         for(byte value : param2Bytes) {
             valueBuilder.append(value);
             valueBuilder.append(",");
         }
-        int dummyCount = batchSize - param2Bytes.length;
+//        int dummyCount = batchSize - param2Bytes.length;
         for(int i = 0;i < dummyCount; i++) {
             valueBuilder.append(0);
             valueBuilder.append(",");
@@ -88,10 +97,12 @@ public class HeEqualFunctionExtension extends FunctionExecutor {
         String valueList = valueBuilder.toString().replaceAll(",$", "");
 
         String encryptedParam2 = homomorphicEncDecService.encryptLongVector(valueList);
+        
         String result = heEval.evaluateSubtract(param1, encryptedParam2);
         String decryptLongVector = homomorphicEncDecService.decryptLongVector(result);
         String modifiedDecryptLongVector = decryptLongVector.replace("0,", "");
         return modifiedDecryptLongVector.isEmpty();
+//        return false;
     }
 
     @Override

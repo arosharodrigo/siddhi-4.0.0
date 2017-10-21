@@ -23,7 +23,7 @@ public class HeEqualFunctionExtensionTestCase {
     private AtomicInteger count = new AtomicInteger(0);
     private volatile boolean eventArrived;
     private HomomorphicEncDecService homomorphicEncDecService;
-    private final int batchSize = 478;
+    private final int batchSize = 500;
 //    private final int batchSize = 39;
 
     @Before
@@ -31,8 +31,8 @@ public class HeEqualFunctionExtensionTestCase {
         count.set(0);
         eventArrived = false;
         homomorphicEncDecService = new HomomorphicEncDecService();
-//        homomorphicEncDecService.generateKeys("/home/arosha/helib-keys", 1201, 1, 2, 15, 64, 1, 80, 0);
-        homomorphicEncDecService.init("/home/arosha/helib-keys");
+        homomorphicEncDecService.generateKeys("/home/arosha/helib-keys", 131, 1, 50, 16, 64, 1, 80, 0);
+//        homomorphicEncDecService.init("/home/arosha/helib-keys");
     }
 
     @Test
@@ -104,4 +104,9 @@ public class HeEqualFunctionExtensionTestCase {
         return encryptedParam;
     }
 
+    @Test
+    public void test() throws Exception {
+
+
+    }
 }
