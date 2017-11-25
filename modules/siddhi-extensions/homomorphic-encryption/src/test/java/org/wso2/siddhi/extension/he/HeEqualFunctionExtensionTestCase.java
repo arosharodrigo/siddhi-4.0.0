@@ -23,15 +23,14 @@ public class HeEqualFunctionExtensionTestCase {
     private AtomicInteger count = new AtomicInteger(0);
     private volatile boolean eventArrived;
     private HomomorphicEncDecService homomorphicEncDecService;
-    private final int batchSize = 500;
-//    private final int batchSize = 39;
+    private final int batchSize = 478;
 
     @Before
     public void init() {
         count.set(0);
         eventArrived = false;
         homomorphicEncDecService = new HomomorphicEncDecService();
-        homomorphicEncDecService.generateKeys("/home/arosha/helib-keys", 131, 1, 50, 16, 64, 1, 80, 0);
+//        homomorphicEncDecService.generateKeys("/home/arosha/helib-keys", 1201, 1, 2, 15, 64, 1, 80, 0);
 //        homomorphicEncDecService.init("/home/arosha/helib-keys");
     }
 
@@ -40,11 +39,11 @@ public class HeEqualFunctionExtensionTestCase {
         log.info("HeEqualFunctionExtensionTestCase TestCase");
         SiddhiManager siddhiManager = new SiddhiManager();
 
-        String inStreamDefinition = "define stream inputEmailsStream (iij_timestamp long, fromAddress string, toAddresses string, " +
+        String inStreamDefinition = "define stream inputEmailsStream (iij_timestamp string, fromAddress string, toAddresses string, " +
                 "ccAddresses string, bccAddresses string, subject string, body string, regexstr string);";
 
-        String query = ("@info(name = 'query1') " + "from inputEmailsStream [(he:equal(fromAddress, 'lynn.blair@enron.com'))] "
-                + "select iij_timestamp, fromAddress, toAddresses as toAdds, ccAddresses as ccAdds, bccAddresses as bccAdds, subject as updatedSubject, body as bodyObfuscated "
+        String query = ("@info(name = 'query1') " + "from inputEmailsStream "
+                + "select iij_timestamp, he:equal(fromAddress, 'lynn.blair@enron.com') as fromAddress, toAddresses as toAdds, ccAddresses as ccAdds, bccAddresses as bccAdds, subject as updatedSubject, body as bodyObfuscated "
                 + "insert into outputEmailsStream;");
 
         ExecutionPlanRuntime executionPlanRuntime = siddhiManager.createExecutionPlanRuntime(inStreamDefinition + query);
@@ -53,7 +52,7 @@ public class HeEqualFunctionExtensionTestCase {
             @Override
             public void receive(long timeStamp, Event[] inEvents, Event[] removeEvents) {
                 EventPrinter.print(timeStamp, inEvents, removeEvents);
-                    for (Event inEvent : inEvents) {
+                    /*for (Event inEvent : inEvents) {
                         count.incrementAndGet();
                         if (count.get() == 1) {
                             Assert.assertEquals("1", String.valueOf(inEvent.getData(2)));
@@ -61,7 +60,7 @@ public class HeEqualFunctionExtensionTestCase {
                         if (count.get() == 2) {
                             Assert.assertEquals("4", String.valueOf(inEvent.getData(2)));
                         }
-                    }
+                    }*/
             }
         });
 

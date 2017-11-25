@@ -21,8 +21,8 @@ public class HeEqualFunctionExtension extends FunctionExecutor {
     private HomomorphicEncDecService homomorphicEncDecService;
 
     private static final int batchSize = 478;
-    private static final int maxEmailLength = 40;
-    private static final int compositeEventSize = 10;
+    private static final int maxEmailLength = 20;
+    private static final int compositeEventSize = 23;
 
     private AtomicReference<String> encryptedOperand = new AtomicReference<String>("");
 
