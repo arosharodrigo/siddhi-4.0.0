@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class HeGreaterThanFunctionExtension extends FunctionExecutor {
 
-    static final Logger log = Logger.getLogger(HeEqualFunctionExtension.class);
+    static final Logger log = Logger.getLogger(HeGreaterThanFunctionExtension.class);
 
     Attribute.Type returnType = Attribute.Type.STRING;
     private HomomorphicEncryptionEvaluation heEval;
@@ -78,7 +78,7 @@ public class HeGreaterThanFunctionExtension extends FunctionExecutor {
 
         heEval = new HomomorphicEncryptionEvaluation();
         homomorphicEncDecService = new HomomorphicEncDecService();
-        String keyFilePath = Properties.PROP.getProperty("key.file.path", "/home/arosha/helib-keys/greater-than");
+        String keyFilePath = Properties.PROP.getProperty("key.file.path2", "/home/arosha/helib-keys/greater-than");
         heEval.init(keyFilePath);
         homomorphicEncDecService.init(keyFilePath);
     }
