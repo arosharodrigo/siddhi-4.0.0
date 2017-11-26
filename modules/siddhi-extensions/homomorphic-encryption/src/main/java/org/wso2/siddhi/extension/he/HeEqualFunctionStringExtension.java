@@ -12,9 +12,9 @@ import util.Properties;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class HeEqualFunctionExtension extends FunctionExecutor {
+public class HeEqualFunctionStringExtension extends FunctionExecutor {
 
-    static final Logger log = Logger.getLogger(HeEqualFunctionExtension.class);
+    static final Logger log = Logger.getLogger(HeEqualFunctionStringExtension.class);
 
     Attribute.Type returnType = Attribute.Type.STRING;
     private HomomorphicEncryptionEvaluation heEval;

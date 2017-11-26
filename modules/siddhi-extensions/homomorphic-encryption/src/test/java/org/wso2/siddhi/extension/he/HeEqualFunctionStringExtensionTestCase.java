@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class HeEqualFunctionExtensionTestCase {
+public class HeEqualFunctionStringExtensionTestCase {
 
     private static final Logger log = Logger.getLogger(HeAddFunctionExtensionTestCase.class);
     private AtomicInteger count = new AtomicInteger(0);
@@ -36,7 +36,7 @@ public class HeEqualFunctionExtensionTestCase {
 
     @Test
     public void testCompareEqualFunctionExtension() throws InterruptedException {
-        log.info("HeEqualFunctionExtensionTestCase TestCase");
+        log.info("HeEqualFunctionStringExtensionTestCase TestCase");
         SiddhiManager siddhiManager = new SiddhiManager();
 
         String inStreamDefinition = "define stream inputEmailsStream (iij_timestamp string, fromAddress string, toAddresses string, " +
