@@ -20,3 +20,4 @@ add=org.wso2.siddhi.extension.he.HeAddFunctionExtension
 equalStr=org.wso2.siddhi.extension.he.HeEqualFunctionStringExtension
 greaterThan=org.wso2.siddhi.extension.he.HeGreaterThanFunctionExtension
 lessThan=org.wso2.siddhi.extension.he.HeLessThanFunctionExtension
+equal=org.wso2.siddhi.extension.he.HeEqualFunctionExtension

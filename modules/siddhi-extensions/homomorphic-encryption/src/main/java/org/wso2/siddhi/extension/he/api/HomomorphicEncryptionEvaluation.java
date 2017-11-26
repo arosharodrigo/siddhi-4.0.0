@@ -14,5 +14,6 @@ public class HomomorphicEncryptionEvaluation {
     public native String evaluateGreaterThanBitSize1(String val1bit1, String val2bit1);
     public native String evaluateGreaterThanBitSize2(String val1bit1, String val1bit2, String val2bit1, String val2bit2);
     public native String evaluateLessThanBitSize2(String val1bit1, String val1bit2, String val2bit1, String val2bit2);
+    public native String evaluateEqualBitSize2(String val1bit1, String val1bit2, String val2bit1, String val2bit2);
 
 }
