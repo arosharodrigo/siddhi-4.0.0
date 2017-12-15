@@ -21,8 +21,8 @@ public class HeEqualFunctionStringExtension extends FunctionExecutor {
     private HomomorphicEncDecService homomorphicEncDecService;
 
     private static final int batchSize = 478;
-    private static final int maxEmailLength = 20;
-    private static final int compositeEventSize = 23;
+    private static final int maxFieldLength = 40;
+    private static final int compositeEventSize = 10;
 
     private AtomicReference<String> encryptedOperand = new AtomicReference<String>("");
 
@@ -84,12 +84,12 @@ public class HeEqualFunctionStringExtension extends FunctionExecutor {
 
         if(encryptedOperand.get().equals("")) {
             String param2 = (String)data[1];
-            String binaryForm = convertToBinaryForm(param2, maxEmailLength);
+            String binaryForm = convertToBinaryForm(param2, maxFieldLength);
             StringBuilder valueBuilder = new StringBuilder();
             for(int i = 0; i < compositeEventSize; i++) {
                 valueBuilder.append(binaryForm).append(",");
             }
-            int remainingSlots = batchSize - (compositeEventSize * maxEmailLength);
+            int remainingSlots = batchSize - (compositeEventSize * maxFieldLength);
             for(int i = 0; i < remainingSlots; i++) {
                 valueBuilder.append(0);
                 valueBuilder.append(",");
