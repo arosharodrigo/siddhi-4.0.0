@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class HeAddFunctionExtensionTestCase {
+public class HeSubtractFunctionExtensionTestCase {
 
     private static final Logger log = Logger.getLogger(HeAddFunctionExtensionTestCase.class);
     private AtomicInteger count = new AtomicInteger(0);
@@ -36,13 +36,13 @@ public class HeAddFunctionExtensionTestCase {
 
     @Test
     public void testAddFunctionExtension() throws InterruptedException {
-        log.info("HeAddFunctionExtensionTestCase TestCase");
+        log.info("HeSubtractFunctionExtensionTestCase TestCase");
         SiddhiManager siddhiManager = new SiddhiManager();
 
         String inStreamDefinition = "define stream inputStream (timestampList string, valueList string, size long);";
 
         String query = ("@info(name = 'query1') " + "from inputStream "
-                + "select timestampList, he:add(valueList, 22L) as withBonusValueList, size "
+                + "select timestampList, he:subtract(valueList, 22L) as withBonusValueList, size "
                 + "insert into outputStream;");
 
         ExecutionPlanRuntime executionPlanRuntime = siddhiManager.createExecutionPlanRuntime(inStreamDefinition + query);
@@ -68,19 +68,19 @@ public class HeAddFunctionExtensionTestCase {
                     for (Event inEvent : decryptedEvents) {
                         count.incrementAndGet();
                         if (count.get() == 1) {
-                            Assert.assertEquals(55L, Long.parseLong(String.valueOf(inEvent.getData(1))));
+                            Assert.assertEquals(11L, Long.parseLong(String.valueOf(inEvent.getData(1))));
                         }
                         if (count.get() == 2) {
-                            Assert.assertEquals(48L, Long.parseLong(String.valueOf(inEvent.getData(1))));
+                            Assert.assertEquals(4L, Long.parseLong(String.valueOf(inEvent.getData(1))));
                         }
                         if (count.get() == 3) {
-                            Assert.assertEquals(247L, Long.parseLong(String.valueOf(inEvent.getData(1))));
+                            Assert.assertEquals(203L, Long.parseLong(String.valueOf(inEvent.getData(1))));
                         }
                         if (count.get() == 4) {
-                            Assert.assertEquals(172L, Long.parseLong(String.valueOf(inEvent.getData(1))));
+                            Assert.assertEquals(128L, Long.parseLong(String.valueOf(inEvent.getData(1))));
                         }
                         if (count.get() == 5) {
-                            Assert.assertEquals(522L, Long.parseLong(String.valueOf(inEvent.getData(1))));
+                            Assert.assertEquals(478L, Long.parseLong(String.valueOf(inEvent.getData(1))));
                         }
                     }
                 }
@@ -125,9 +125,4 @@ public class HeAddFunctionExtensionTestCase {
         executionPlanRuntime.shutdown();
     }
 
-    @Test
-    public void testGenerateKeys() throws Exception {
-        System.out.println();
-
-    }
 }

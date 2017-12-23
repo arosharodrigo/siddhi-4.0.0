@@ -11,7 +11,7 @@ import util.Properties;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class HeAddFunctionExtension extends FunctionExecutor {
+public class HeSubtractFunctionExtension extends FunctionExecutor {
 
     Attribute.Type returnType = Attribute.Type.STRING;
     private HomomorphicEncryptionEvaluation heEval;
@@ -78,7 +78,7 @@ public class HeAddFunctionExtension extends FunctionExecutor {
             String param2 = homomorphicEncDecService.encryptLong((Long)data[1]);
             encryptedOperand = new AtomicReference<String>(param2);
         }
-        String result = heEval.evaluateAdd(param1, encryptedOperand.get());
+        String result = heEval.evaluateSubtract(param1, encryptedOperand.get());
         return result;
     }
 
@@ -86,5 +86,5 @@ public class HeAddFunctionExtension extends FunctionExecutor {
     protected Object execute(Object data) {
         return null;
     }
-    
+
 }
