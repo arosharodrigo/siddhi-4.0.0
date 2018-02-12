@@ -18,6 +18,8 @@
 
 add=org.wso2.siddhi.extension.he.HeAddFunctionExtension
 subtract=org.wso2.siddhi.extension.he.HeSubtractFunctionExtension
+multiply=org.wso2.siddhi.extension.he.HeMultiplyFunctionExtension
+divide=org.wso2.siddhi.extension.he.HeDivideFunctionExtension
 equalStr=org.wso2.siddhi.extension.he.HeEqualFunctionStringExtension
 greaterThan=org.wso2.siddhi.extension.he.HeGreaterThanFunctionExtension
 lessThan=org.wso2.siddhi.extension.he.HeLessThanFunctionExtension
